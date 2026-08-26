@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "API REST BV2 | Projeto UEPG",
-    "description": "# API REST BV2 - Assistencia Tecnica\nProjeto de Engenharia de Software - UEPG\n\n**Spring Boot | Java 21 | PostgreSQL | JWT (java-jwt / Auth0)**\n\nDocumentacao completa do endpoint **`/clientes`** (CRUD + autorizacao por papel) e da autenticacao que o protege. Todas as requisicoes foram **testadas e validadas** contra a aplicacao rodando localmente.\n\n## Como usar\n1. Suba a aplicacao (`./mvnw spring-boot:run`) na porta 8080 (ajuste `{{baseUrl}}` se necessario).\n2. Preencha `{{adminEmail}}` / `{{adminSenha}}` e rode **1. Autenticacao > Login (admin)** — o token e salvo em `{{token}}` e aplicado a toda a colecao.\n3. Rode **2. Clientes > Criar cliente**: gera e-mail unico e salva `{{clienteId}}`.\n4. Para os cenarios 403, rode **Login (cliente)** (salva `{{tokenCliente}}`).\n\n## Autorizacao\n| Papel | Pode |\n|---|---|\n| **ADMIN** | tudo: criar, listar, buscar, atualizar, ativar/desativar, excluir |\n| **CLIENTE** | apenas ler e editar o **proprio** cadastro |\n\n## Padrao de erros — ProblemDetail (RFC 7807)\n`type`, `title`, `status`, `detail`, `instance`, `timestamp` e, na validacao, um mapa `erros` (campo -> mensagem).\n\n## Endpoints de /clientes\n| Metodo | Rota | Papel | Descricao |\n|---|---|---|---|\n| POST | `/clientes` | ADMIN | Cria usuario + cliente (201) |\n| GET | `/clientes` | ADMIN | Lista paginada, filtros `nome`/`ativo` |\n| GET | `/clientes/{id}` | ADMIN ou dono | Busca por id |\n| PUT | `/clientes/{id}` | ADMIN ou dono | Atualiza nome e telefone |\n| PATCH | `/clientes/{id}/ativar` | ADMIN | Reativa (idempotente) |\n| PATCH | `/clientes/{id}/desativar` | ADMIN | Inativa (idempotente) |\n| DELETE | `/clientes/{id}` | ADMIN | Remove cliente + usuario (204) |",
+    "description": "# API REST BV2 - Assistencia Tecnica\nProjeto de Engenharia de Software - UEPG\n\n**Spring Boot 4 | Java 21 | PostgreSQL | JWT (java-jwt / Auth0)**\n\nDocumentacao dos endpoints **`/clientes`**, **`/marcas`**, **`/servicos`** e **`/equipamentos`**, mais a autenticacao que os protege. Todas as requisicoes foram **testadas e validadas** contra a aplicacao rodando localmente — as respostas salvas sao capturas reais.\n\n## Como usar\n1. Suba a aplicacao (`./mvnw spring-boot:run`) na porta 8080 (ajuste `{{baseUrl}}` se necessario).\n2. Preencha `{{adminEmail}}` / `{{adminSenha}}` e rode **1. Autenticacao > Login (admin)** — o token e salvo em `{{token}}` e aplicado a toda a colecao.\n3. Rode **2. Clientes > Criar cliente**: gera e-mail unico e salva `{{clienteId}}`.\n4. Para os cenarios 403, rode **Login (cliente)** (salva `{{tokenCliente}}`).\n5. As pastas 4 a 6 sao encadeadas: **Marcas** salva `{{marcaId}}`, usado por **Equipamentos**.\n\n## Autorizacao\nA unica diferenca entre os papeis e **sobre quais clientes cada um enxerga**:\n\n| Papel | Pode |\n|---|---|\n| **ADMIN** | tudo, sobre qualquer cliente |\n| **CLIENTE** | marcas e servicos por completo; nos proprios cadastro e equipamentos, tudo; nos alheios, nada (403) |\n\n## Padrao de erros - ProblemDetail (RFC 7807)\n`type`, `title`, `status`, `detail`, `instance`, `timestamp` e, na validacao, um mapa `erros` (campo -> mensagem).\n\n| Status | Quando |\n|---|---|\n| **400** | falha de Bean Validation ou JSON malformado |\n| **401** | sem token, token invalido ou expirado |\n| **403** | recurso de outro cliente |\n| **404** | id inexistente |\n| **409** | nome duplicado, ou exclusao barrada por FK `ON DELETE RESTRICT` |\n| **422** | regra de negocio (ex.: equipamento para cliente inativo) |\n\n## Endpoints\n### /clientes\n| Metodo | Rota | Papel | Descricao |\n|---|---|---|---|\n| POST | `/clientes` | ADMIN | Cria usuario + cliente (201) |\n| GET | `/clientes` | ADMIN | Lista paginada, filtros `nome`/`ativo` |\n| GET | `/clientes/{id}` | ADMIN ou dono | Busca por id |\n| PUT | `/clientes/{id}` | ADMIN ou dono | Atualiza nome e telefone |\n| PATCH | `/clientes/{id}/ativar` | ADMIN | Reativa (idempotente) |\n| PATCH | `/clientes/{id}/desativar` | ADMIN | Inativa (idempotente) |\n| DELETE | `/clientes/{id}` | ADMIN | Remove cliente + usuario (204) |\n\n### /marcas\n| Metodo | Rota | Descricao |\n|---|---|---|\n| POST | `/marcas` | Cria (201). `nome` e UNIQUE -> 409 se repetir |\n| GET | `/marcas` | Lista paginada, filtro `nome` |\n| GET | `/marcas/{id}` | Busca por id |\n| PUT | `/marcas/{id}` | Atualiza o nome |\n| DELETE | `/marcas/{id}` | Remove (204); 409 se houver equipamentos |\n\n### /servicos\n| Metodo | Rota | Descricao |\n|---|---|---|\n| POST | `/servicos` | Cria (201); nasce `ativo` com `contadorUso: 0` |\n| GET | `/servicos` | Lista paginada, filtros `nome`/`ativo` |\n| GET | `/servicos/{id}` | Busca por id |\n| PUT | `/servicos/{id}` | Atualiza nome, descricao e valor |\n| PATCH | `/servicos/{id}/ativar` | Reativa (idempotente) |\n| PATCH | `/servicos/{id}/desativar` | Inativa (idempotente) |\n| DELETE | `/servicos/{id}` | Remove (204); 409 se usado em OS |\n\n`contadorUso` e somente leitura — mantido pelas ordens de servico, nunca pelo corpo da requisicao.\n\n### /equipamentos\n| Metodo | Rota | Papel | Descricao |\n|---|---|---|---|\n| POST | `/equipamentos` | ADMIN ou proprio cliente | Cria (201); `clienteId` opcional para o cliente |\n| GET | `/equipamentos` | ambos | Lista paginada, filtros `clienteId`/`marcaId`/`nome` |\n| GET | `/equipamentos/{id}` | ADMIN ou dono | Busca por id |\n| PUT | `/equipamentos/{id}` | ADMIN ou dono | Atualiza nome e marca (dono e imutavel) |\n| DELETE | `/equipamentos/{id}` | ADMIN ou dono | Remove (204); 409 se usado em OS |",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -245,7 +245,7 @@
             "description": "Cria **Usuario + Cliente** na mesma transacao (a FK id_usuario e NOT NULL). O role do usuario e sempre CLIENTE. Retorna **201** com header `Location`. \n\nO pre-request script gera um e-mail unico para o cadastro nao colidir em reexecucoes.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nome\": \"Maria Souza\",\n  \"telefone\": \"4291112222\",\n  \"usuario\": {\n    \"nome\": \"Maria Souza\",\n    \"email\": \"{{clienteEmail}}\",\n    \"senha\": \"{{clienteSenha}}\"\n  }\n}",
+              "raw": "{\n  \"nome\": \"Bruno\",\n  \"telefone\": \"42988886690\",\n  \"usuario\": {\n    \"nome\": \"Bruno\",\n    \"email\": \"{{clienteEmail}}\",\n    \"senha\": \"{{clienteSenha}}\"\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -372,7 +372,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/clientes?nome=maria&ativo=true&size=10",
+              "raw": "{{baseUrl}}/clientes?nome=bruno&ativo=true&size=10",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -382,7 +382,7 @@
               "query": [
                 {
                   "key": "nome",
-                  "value": "maria"
+                  "value": "bruno"
                 },
                 {
                   "key": "ativo",
@@ -493,7 +493,7 @@
             "description": "Atualiza **apenas nome e telefone** (ADMIN ou o proprio cliente). E-mail e senha mudam em endpoint proprio de usuario.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"nome\": \"Maria Souza Lima\",\n  \"telefone\": \"4299998888\"\n}",
+              "raw": "{\n  \"nome\": \"Vicente\",\n  \"telefone\": \"42987523487\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -974,6 +974,2899 @@
           ]
         }
       ]
+    },
+    {
+      "name": "4. Marcas (CRUD)",
+      "description": "Catalogo de marcas dos equipamentos.\n\n**Leitura** (GET): qualquer usuario autenticado.\n**Escrita** (POST/PUT/DELETE): **apenas ADMIN** — com token de cliente a resposta e 403.\n\nA marca nao tem campo `ativo`, entao nao ha ativar/desativar. A FK de `equipamentos` e `ON DELETE RESTRICT`: apagar uma marca em uso devolve **409**.\n\nA pasta remove ao final a marca que criou, entao pode ser reexecutada.",
+      "item": [
+        {
+          "name": "Criar marca (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/marcas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Dell\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Cria uma marca. O nome vai literalmente como escrito aqui - edite a vontade. Apenas **ADMIN** cria marcas; com token de CLIENTE a resposta e 403.\n\nA pasta remove ao final a marca que criou, entao pode ser reexecutada. Se voce rodar so esta requisicao duas vezes, a segunda devolve **409** (o `nome` e UNIQUE)."
+          },
+          "response": [
+            {
+              "name": "201 - Marca criada",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/marcas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marcas"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"{{marcaNome}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Cria uma marca. O nome e unico no banco; repetir devolve 409."
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 4,\n  \"nome\": \"Marca 1787704819\",\n  \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('header Location', () => pm.expect(pm.response.headers.get('Location')).to.include('/marcas/'));",
+                  "const b = pm.response.json();",
+                  "pm.test('devolve o nome exatamente como foi enviado', () => {",
+                  "    const enviado = JSON.parse(pm.request.body.raw).nome;",
+                  "    pm.expect(b.nome).to.eql(enviado);",
+                  "});",
+                  "pm.collectionVariables.set('marcaId', b.id);",
+                  "pm.collectionVariables.set('marcaNome', b.nome);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar marcas (paginado)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/marcas?page=0&size=20&sort=nome,asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "nome,asc"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 - Pagina de marcas",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marcas?page=0&size=20&sort=nome,asc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marcas"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "nome,asc"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [\n    {\n      \"id\": 4,\n      \"nome\": \"Marca 1787704819\",\n      \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n    }\n  ],\n  \"pagina\": 0,\n  \"tamanho\": 20,\n  \"totalElementos\": 1,\n  \"totalPaginas\": 1,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('envelope de paginacao', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.conteudo).to.be.an('array');",
+                  "    ['pagina','tamanho','totalElementos','totalPaginas','primeira','ultima']",
+                  "        .forEach(k => pm.expect(b).to.have.property(k));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar com filtro (nome)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/marcas?nome=Dell&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas"
+              ],
+              "query": [
+                {
+                  "key": "nome",
+                  "value": "Dell"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 - Pagina filtrada",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marcas?nome=Marca&size=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marcas"
+                  ],
+                  "query": [
+                    {
+                      "key": "nome",
+                      "value": "Marca"
+                    },
+                    {
+                      "key": "size",
+                      "value": "10"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [\n    {\n      \"id\": 4,\n      \"nome\": \"Marca 1787704819\",\n      \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n    }\n  ],\n  \"pagina\": 0,\n  \"tamanho\": 10,\n  \"totalElementos\": 1,\n  \"totalPaginas\": 1,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('envelope de paginacao', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.conteudo).to.be.an('array');",
+                  "    ['pagina','tamanho','totalElementos','totalPaginas','primeira','ultima']",
+                  "        .forEach(k => pm.expect(b).to.have.property(k));",
+                  "});",
+                  "pm.test('todos batem com o filtro', () => {",
+                  "    pm.response.json().conteudo.forEach(m =>",
+                  "        pm.expect(m.nome.toLowerCase()).to.include('dell'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar marca por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/marcas/{{marcaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas",
+                "{{marcaId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 - Marca encontrada",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marcas/{{marcaId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marcas",
+                    "{{marcaId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 4,\n  \"nome\": \"Marca 1787704819\",\n  \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('id confere', () => pm.expect(pm.response.json().id)",
+                  "    .to.eql(Number(pm.collectionVariables.get('marcaId'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualizar marca (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/marcas/{{marcaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas",
+                "{{marcaId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Dell Inspiron\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Apenas ADMIN. Com token de CLIENTE, 403."
+          },
+          "response": [
+            {
+              "name": "200 - Marca atualizada",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/marcas/{{marcaId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marcas",
+                    "{{marcaId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"{{marcaNome}} Editada\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 4,\n  \"nome\": \"Marca 1787704819 Editada\",\n  \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('nome atualizado', () => pm.expect(pm.response.json().nome).to.eql('Dell Inspiron'));",
+                  "pm.collectionVariables.set('marcaNome', pm.response.json().nome);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Nome duplicado (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/marcas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Dell Inspiron\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "A coluna `nome` e UNIQUE: repetir o nome usado no PUT acima devolve 409."
+          },
+          "response": [
+            {
+              "name": "409 - Nome duplicado",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/marcas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marcas"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"{{marcaNome}} Editada\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "A coluna `nome` e UNIQUE. Repetir um nome ja cadastrado devolve 409."
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Ja existe uma marca com o nome Marca 1787704819 Editada\",\n  \"instance\": \"/marcas\",\n  \"status\": 409,\n  \"title\": \"Recurso duplicado\",\n  \"timestamp\": \"2026-08-26T00:40:19.914884712Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validacao de campos (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/marcas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "400 - Dados invalidos",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/marcas",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marcas"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Um ou mais campos falharam na validacao.\",\n  \"instance\": \"/marcas\",\n  \"status\": 400,\n  \"title\": \"Dados invalidos\",\n  \"timestamp\": \"2026-08-26T00:40:19.976508285Z\",\n  \"erros\": {\n    \"nome\": \"O nome e obrigatorio\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('mapa de erros por campo', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.erros).to.be.an('object');",
+                  "    pm.expect(b.erros).to.have.property('nome');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Marca inexistente (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/marcas/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas",
+                "999999"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "404 - Nao encontrada",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marcas/999999",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marcas",
+                    "999999"
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Marca nao encontrado(a) para o id 999999\",\n  \"instance\": \"/marcas/999999\",\n  \"status\": 404,\n  \"title\": \"Recurso nao encontrado\",\n  \"timestamp\": \"2026-08-26T00:40:20.041737655Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente tentando criar marca (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/marcas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Escrita no catalogo e exclusiva do ADMIN. Com `{{tokenCliente}}` a resposta e 403 — antes desta correcao um cliente conseguia alterar e ate apagar o catalogo compartilhado.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Marca do cliente\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente tentando apagar marca (403)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/marcas/{{marcaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas",
+                "{{marcaId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Escrita no catalogo e exclusiva do ADMIN. Com `{{tokenCliente}}` a resposta e 403 — antes desta correcao um cliente conseguia alterar e ate apagar o catalogo compartilhado."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir marca (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/marcas/{{marcaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas",
+                "{{marcaId}}"
+              ]
+            },
+            "description": "Apaga a marca criada nesta pasta, deixando o banco como estava. Apenas ADMIN. A pasta 6 cria a propria marca, entao nao depende desta."
+          },
+          "response": [
+            {
+              "name": "204 - Marca removida",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marcas/{{marcaDescartavelId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marcas",
+                    "{{marcaDescartavelId}}"
+                  ]
+                },
+                "description": "Exclui uma marca descartavel criada no pre-request, para nao derrubar o `{{marcaId}}` que a pasta 6 ainda vai usar."
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": "",
+              "_postman_previewlanguage": "text"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+                  "pm.test('sem corpo', () => pm.expect(pm.response.text()).to.be.empty);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Servicos (CRUD)",
+      "description": "Catalogo de servicos prestados.\n\n**Leitura** (GET): qualquer usuario autenticado.\n**Escrita** (POST/PUT/PATCH/DELETE): **apenas ADMIN** — com token de cliente a resposta e 403.\n\n`contadorUso` e **somente leitura**: nunca vai no corpo da requisicao, quem o incrementa sao as ordens de servico. `ativo` tambem nao vai no PUT: a situacao muda pelos PATCH `/ativar` e `/desativar`, ambos **idempotentes**.",
+      "item": [
+        {
+          "name": "Criar servico (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/servicos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Troca de tela\",\n  \"descricao\": \"Substituicao completa do modulo de display\",\n  \"valor\": 450.00\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Nasce sempre com `ativo: true` e `contadorUso: 0`."
+          },
+          "response": [
+            {
+              "name": "201 - Servico criado",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/servicos",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "servicos"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"Troca de tela\",\n  \"descricao\": \"Substituicao completa do modulo de display\",\n  \"valor\": 450.00\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Nasce sempre com `ativo: true` e `contadorUso: 0`."
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 2,\n  \"nome\": \"Troca de tela\",\n  \"descricao\": \"Substituicao completa do modulo de display\",\n  \"valor\": 450.0,\n  \"contadorUso\": 0,\n  \"ativo\": true,\n  \"criadoEm\": \"2026-08-25T21:40:20.112552\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('header Location', () => pm.expect(pm.response.headers.get('Location')).to.include('/servicos/'));",
+                  "const b = pm.response.json();",
+                  "pm.test('nasce ativo e com contador zerado', () => {",
+                  "    pm.expect(b.ativo).to.be.true;",
+                  "    pm.expect(b.contadorUso).to.eql(0);",
+                  "});",
+                  "pm.collectionVariables.set('servicoId', b.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar servicos (paginado)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/servicos?page=0&size=20&sort=nome,asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "nome,asc"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 - Pagina de servicos",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/servicos?page=0&size=20&sort=nome,asc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "servicos"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "nome,asc"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [\n    {\n      \"id\": 2,\n      \"nome\": \"Troca de tela\",\n      \"descricao\": \"Substituicao completa do modulo de display\",\n      \"valor\": 450.0,\n      \"contadorUso\": 0,\n      \"ativo\": true,\n      \"criadoEm\": \"2026-08-25T21:40:20.112552\"\n    }\n  ],\n  \"pagina\": 0,\n  \"tamanho\": 20,\n  \"totalElementos\": 1,\n  \"totalPaginas\": 1,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('envelope de paginacao', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.conteudo).to.be.an('array');",
+                  "    ['pagina','tamanho','totalElementos','totalPaginas','primeira','ultima']",
+                  "        .forEach(k => pm.expect(b).to.have.property(k));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar com filtros (nome + ativo)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/servicos?nome=troca&ativo=true&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos"
+              ],
+              "query": [
+                {
+                  "key": "nome",
+                  "value": "troca"
+                },
+                {
+                  "key": "ativo",
+                  "value": "true"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 - Pagina filtrada",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/servicos?nome=troca&ativo=true&size=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "servicos"
+                  ],
+                  "query": [
+                    {
+                      "key": "nome",
+                      "value": "troca"
+                    },
+                    {
+                      "key": "ativo",
+                      "value": "true"
+                    },
+                    {
+                      "key": "size",
+                      "value": "10"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [\n    {\n      \"id\": 2,\n      \"nome\": \"Troca de tela\",\n      \"descricao\": \"Substituicao completa do modulo de display\",\n      \"valor\": 450.0,\n      \"contadorUso\": 0,\n      \"ativo\": true,\n      \"criadoEm\": \"2026-08-25T21:40:20.112552\"\n    }\n  ],\n  \"pagina\": 0,\n  \"tamanho\": 10,\n  \"totalElementos\": 1,\n  \"totalPaginas\": 1,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('envelope de paginacao', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.conteudo).to.be.an('array');",
+                  "    ['pagina','tamanho','totalElementos','totalPaginas','primeira','ultima']",
+                  "        .forEach(k => pm.expect(b).to.have.property(k));",
+                  "});",
+                  "pm.test('respeita os filtros', () => {",
+                  "    pm.response.json().conteudo.forEach(s => {",
+                  "        pm.expect(s.nome.toLowerCase()).to.include('troca');",
+                  "        pm.expect(s.ativo).to.be.true;",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar servico por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/servicos/{{servicoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos",
+                "{{servicoId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 - Servico encontrado",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/servicos/{{servicoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "servicos",
+                    "{{servicoId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 2,\n  \"nome\": \"Troca de tela\",\n  \"descricao\": \"Substituicao completa do modulo de display\",\n  \"valor\": 450.0,\n  \"contadorUso\": 0,\n  \"ativo\": true,\n  \"criadoEm\": \"2026-08-25T21:40:20.112552\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('id confere', () => pm.expect(pm.response.json().id)",
+                  "    .to.eql(Number(pm.collectionVariables.get('servicoId'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualizar servico (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/servicos/{{servicoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos",
+                "{{servicoId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Troca de tela\",\n  \"descricao\": \"Substituicao do modulo de display com garantia de 90 dias\",\n  \"valor\": 499.90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Altera apenas nome, descricao e valor. Nao toca em `ativo` nem em `contadorUso`."
+          },
+          "response": [
+            {
+              "name": "200 - Servico atualizado",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/servicos/{{servicoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "servicos",
+                    "{{servicoId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"Troca de tela\",\n  \"descricao\": \"Substituicao do modulo de display com garantia de 90 dias\",\n  \"valor\": 499.90\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Altera apenas nome, descricao e valor. Nao toca em `ativo` nem em `contadorUso`."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 2,\n  \"nome\": \"Troca de tela\",\n  \"descricao\": \"Substituicao do modulo de display com garantia de 90 dias\",\n  \"valor\": 499.9,\n  \"contadorUso\": 0,\n  \"ativo\": true,\n  \"criadoEm\": \"2026-08-25T21:40:20.112552\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('valor atualizado', () => pm.expect(Number(b.valor)).to.eql(499.90));",
+                  "pm.test('contadorUso preservado', () => pm.expect(b.contadorUso).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Desativar servico (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/servicos/{{servicoId}}/desativar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos",
+                "{{servicoId}}",
+                "desativar"
+              ]
+            },
+            "description": "Idempotente: repetir mantem 200 e `ativo: false`."
+          },
+          "response": [
+            {
+              "name": "200 - Servico inativado",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/servicos/{{servicoId}}/desativar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "servicos",
+                    "{{servicoId}}",
+                    "desativar"
+                  ]
+                },
+                "description": "Idempotente: repetir mantem 200 e `ativo: false`."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 2,\n  \"nome\": \"Troca de tela\",\n  \"descricao\": \"Substituicao do modulo de display com garantia de 90 dias\",\n  \"valor\": 499.9,\n  \"contadorUso\": 0,\n  \"ativo\": false,\n  \"criadoEm\": \"2026-08-25T21:40:20.112552\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('ficou inativo', () => pm.expect(pm.response.json().ativo).to.be.false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ativar servico (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/servicos/{{servicoId}}/ativar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos",
+                "{{servicoId}}",
+                "ativar"
+              ]
+            },
+            "description": "Idempotente: repetir mantem 200 e `ativo: true`."
+          },
+          "response": [
+            {
+              "name": "200 - Servico reativado",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/servicos/{{servicoId}}/ativar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "servicos",
+                    "{{servicoId}}",
+                    "ativar"
+                  ]
+                },
+                "description": "Idempotente: repetir mantem 200 e `ativo: true`."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 2,\n  \"nome\": \"Troca de tela\",\n  \"descricao\": \"Substituicao do modulo de display com garantia de 90 dias\",\n  \"valor\": 499.9,\n  \"contadorUso\": 0,\n  \"ativo\": true,\n  \"criadoEm\": \"2026-08-25T21:40:20.112552\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('voltou a ficar ativo', () => pm.expect(pm.response.json().ativo).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Valor negativo (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/servicos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Servico invalido\",\n  \"valor\": -10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`valor` tem @DecimalMin(\"0.00\"), espelhando o CHECK `valor >= 0` do banco."
+          },
+          "response": [
+            {
+              "name": "400 - Valor negativo",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/servicos",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "servicos"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nome\": \"Servico invalido\",\n  \"valor\": -10\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "`valor` tem @DecimalMin(\"0.00\"), espelhando o CHECK `valor >= 0` do banco."
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Um ou mais campos falharam na validacao.\",\n  \"instance\": \"/servicos\",\n  \"status\": 400,\n  \"title\": \"Dados invalidos\",\n  \"timestamp\": \"2026-08-26T00:40:20.654933782Z\",\n  \"erros\": {\n    \"valor\": \"O valor nao pode ser negativo\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('erro no campo valor', () => {",
+                  "    pm.expect(pm.response.json().erros).to.have.property('valor');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Servico inexistente (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/servicos/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos",
+                "999999"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "404 - Nao encontrado",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/servicos/999999",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "servicos",
+                    "999999"
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Servico nao encontrado(a) para o id 999999\",\n  \"instance\": \"/servicos/999999\",\n  \"status\": 404,\n  \"title\": \"Recurso nao encontrado\",\n  \"timestamp\": \"2026-08-26T00:40:20.722420342Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente tentando alterar preco (403)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/servicos/{{servicoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos",
+                "{{servicoId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Escrita no catalogo e exclusiva do ADMIN. Com `{{tokenCliente}}` a resposta e 403 — antes desta correcao um cliente conseguia alterar e ate apagar o catalogo compartilhado.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Troca de tela\",\n  \"descricao\": \"tentativa de rebaixar o preco\",\n  \"valor\": 0.01\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente tentando apagar servico (403)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/servicos/{{servicoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos",
+                "{{servicoId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Escrita no catalogo e exclusiva do ADMIN. Com `{{tokenCliente}}` a resposta e 403 — antes desta correcao um cliente conseguia alterar e ate apagar o catalogo compartilhado."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir servico (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/servicos/{{servicoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "servicos",
+                "{{servicoId}}"
+              ]
+            },
+            "description": "Servico usado em itens de OS devolve 409 (FK ON DELETE RESTRICT). Para o caso comum, prefira **desativar**."
+          },
+          "response": [
+            {
+              "name": "204 - Servico removido",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/servicos/{{servicoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "servicos",
+                    "{{servicoId}}"
+                  ]
+                },
+                "description": "Servico usado em itens de OS devolve 409 (FK ON DELETE RESTRICT). Para o caso comum, prefira **desativar**."
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": "",
+              "_postman_previewlanguage": "text"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+                  "pm.test('sem corpo', () => pm.expect(pm.response.text()).to.be.empty);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Equipamentos (CRUD)",
+      "description": "Equipamentos dos clientes — **o unico recurso das tres pastas novas com regra de posse**.\n\n| Papel | Pode |\n|---|---|\n| **ADMIN** | tudo, em qualquer cliente (precisa informar `clienteId`) |\n| **CLIENTE** | criar, ler, editar e excluir **apenas os proprios** |\n\nNo POST o `clienteId` e **opcional**: omitido, o dono e resolvido pelo usuario autenticado (fluxo natural do cliente). O ADMIN, que nao tem cadastro de cliente, e obrigado a informa-lo — senao recebe 422.\n\nNa listagem, quem nao e ADMIN tem o filtro de cliente **sobrescrito** pelo proprio id: passar `?clienteId=` de outra pessoa nao vaza nada.\n\nRode **1. Autenticacao > Login (cliente)** antes dos cenarios que usam `{{tokenCliente}}`.",
+      "item": [
+        {
+          "name": "Criar equipamento para outro cliente (so ADMIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": {{clienteEquipId}},\n  \"marcaId\": {{marcaEquipId}},\n  \"nome\": \"Notebook Inspiron 15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "**A rota `POST /equipamentos` e compartilhada** - nao existe uma rota \"de admin\" e outra \"de cliente\". Quem decide o que voce pode fazer e o token:\n\n| Token | `clienteId` no corpo | Resultado |\n|---|---|---|\n| ADMIN | de qualquer cliente | **201** |\n| CLIENTE | omitido | **201** - vira dono do proprio equipamento |\n| CLIENTE | o proprio id | **201** |\n| CLIENTE | id de **outro** cliente | **403** |\n\nEsta requisicao usa o token ADMIN e um `clienteId` de terceiro: trocar para um token de CLIENTE aqui devolve **403**, e o cenario esta na requisicao *Cliente criando para outro (403)*.\n\nO pre-request cria o cliente e a marca que esta pasta usa, para ela nao depender de nenhuma outra."
+          },
+          "response": [
+            {
+              "name": "201 - Equipamento criado",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clienteId\": {{clienteId}},\n  \"marcaId\": {{marcaId}},\n  \"nome\": \"Notebook Inspiron 15\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Requer `{{marcaId}}` (rode a pasta 4 antes) e `{{clienteId}}`."
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 3,\n  \"nome\": \"Notebook Inspiron 15\",\n  \"criadoEm\": \"2026-08-25T21:40:41.117483\",\n  \"cliente\": {\n    \"id\": 1,\n    \"nome\": \"Vicente\"\n  },\n  \"marca\": {\n    \"id\": 4,\n    \"nome\": \"Marca 1787704819 Editada\",\n    \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// a pasta cria o proprio cliente e a propria marca, e remove os dois no final",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const token = pm.collectionVariables.get('token');",
+                  "const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + token};",
+                  "pm.sendRequest({",
+                  "    url: base + '/clientes', method: 'POST', header: h,",
+                  "    body: {mode: 'raw', raw: JSON.stringify({",
+                  "        nome: 'Dono de Equipamento', telefone: '4290000000',",
+                  "        usuario: {nome: 'Dono de Equipamento',",
+                  "                  email: 'dono.' + Date.now() + '@teste.com',",
+                  "                  senha: 'Cliente@123'}",
+                  "    })}",
+                  "}, (e1, r1) => pm.collectionVariables.set('clienteEquipId', r1.json().id));",
+                  "pm.sendRequest({",
+                  "    url: base + '/marcas', method: 'POST', header: h,",
+                  "    body: {mode: 'raw', raw: JSON.stringify({nome: 'Marca da pasta 6 - ' + Date.now()})}",
+                  "}, (e2, r2) => pm.collectionVariables.set('marcaEquipId', r2.json().id));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('header Location', () => pm.expect(pm.response.headers.get('Location')).to.include('/equipamentos/'));",
+                  "const b = pm.response.json();",
+                  "pm.test('traz cliente e marca aninhados', () => {",
+                  "    pm.expect(b.cliente).to.have.property('nome');",
+                  "    pm.expect(b.marca).to.have.property('nome');",
+                  "});",
+                  "pm.test('resumo do cliente nao vaza usuario', () => {",
+                  "    pm.expect(b.cliente).to.not.have.property('usuario');",
+                  "});",
+                  "pm.collectionVariables.set('equipamentoId', b.id);",
+                  "pm.collectionVariables.set('marcaComVinculoId', pm.collectionVariables.get('marcaId'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar equipamento como CLIENTE (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"marcaId\": {{marcaEquipId}},\n  \"nome\": \"Smartphone pessoal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sem `clienteId`: o dono e resolvido a partir do token. Demonstra que o cliente cadastra no proprio nome."
+          },
+          "response": [
+            {
+              "name": "201 - Criado pelo proprio cliente",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenCliente}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"marcaId\": {{marcaId}},\n  \"nome\": \"Smartphone pessoal\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Sem `clienteId`: o dono e resolvido a partir do token. Demonstra que o cliente cadastra no proprio nome."
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 4,\n  \"nome\": \"Smartphone pessoal\",\n  \"criadoEm\": \"2026-08-25T21:40:41.243791\",\n  \"cliente\": {\n    \"id\": 3,\n    \"nome\": \"Bruno\"\n  },\n  \"marca\": {\n    \"id\": 4,\n    \"nome\": \"Marca 1787704819 Editada\",\n    \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.test('dono resolvido pelo token', () => pm.expect(b.cliente.id).to.be.a('number'));",
+                  "pm.collectionVariables.set('equipamentoDoClienteId', b.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente criando para OUTRO cliente (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": {{clienteEquipId}},\n  \"marcaId\": {{marcaEquipId}},\n  \"nome\": \"Tentativa de invasao\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Mesma rota, token de CLIENTE e `clienteId` de terceiro: a posse e verificada no service e a resposta e 403."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar equipamentos (paginado)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos?page=0&size=20&sort=nome,asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "nome,asc"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 - Pagina de equipamentos",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos?page=0&size=20&sort=nome,asc",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "nome,asc"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [\n    {\n      \"id\": 3,\n      \"nome\": \"Notebook Inspiron 15\",\n      \"criadoEm\": \"2026-08-25T21:40:41.117483\",\n      \"cliente\": {\n        \"id\": 1,\n        \"nome\": \"Vicente\"\n      },\n      \"marca\": {\n        \"id\": 4,\n        \"nome\": \"Marca 1787704819 Editada\",\n        \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n      }\n    },\n    {\n      \"id\": 4,\n      \"nome\": \"Smartphone pessoal\",\n      \"criadoEm\": \"2026-08-25T21:40:41.243791\",\n      \"cliente\": {\n        \"id\": 3,\n        \"nome\": \"Bruno\"\n      },\n      \"marca\": {\n        \"id\": 4,\n        \"nome\": \"Marca 1787704819 Editada\",\n        \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n      }\n    }\n  ],\n  \"pagina\": 0,\n  \"tamanho\": 20,\n  \"totalElementos\": 2,\n  \"totalPaginas\": 1,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('envelope de paginacao', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.conteudo).to.be.an('array');",
+                  "    ['pagina','tamanho','totalElementos','totalPaginas','primeira','ultima']",
+                  "        .forEach(k => pm.expect(b).to.have.property(k));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar equipamentos DE UM CLIENTE (por id do cliente)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos?clienteId={{clienteEquipId}}&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos"
+              ],
+              "query": [
+                {
+                  "key": "clienteId",
+                  "value": "{{clienteEquipId}}"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "O parametro `clienteId` e o **id do CLIENTE (dono)**, nao o id do equipamento - a rota devolve a lista de equipamentos daquele cliente.\n\nPara buscar **um** equipamento pelo id dele, use `GET /equipamentos/{id}`.\n\n| Token | Efeito do `clienteId` |\n|---|---|\n| ADMIN | vale como pedido: lista os equipamentos do cliente informado |\n| CLIENTE | **ignorado** e trocado pelo proprio id - nao da para espiar a lista de outro |\n\nOutros filtros combinaveis: `marcaId` e `nome`."
+          },
+          "response": [
+            {
+              "name": "200 - Pagina filtrada por cliente",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos?clienteId={{clienteId}}&size=10",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos"
+                  ],
+                  "query": [
+                    {
+                      "key": "clienteId",
+                      "value": "{{clienteId}}"
+                    },
+                    {
+                      "key": "size",
+                      "value": "10"
+                    }
+                  ]
+                },
+                "description": "Para o ADMIN o filtro vale como pedido. Para um CLIENTE ele e ignorado e substituido pelo proprio id."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [\n    {\n      \"id\": 3,\n      \"nome\": \"Notebook Inspiron 15\",\n      \"criadoEm\": \"2026-08-25T21:40:41.117483\",\n      \"cliente\": {\n        \"id\": 1,\n        \"nome\": \"Vicente\"\n      },\n      \"marca\": {\n        \"id\": 4,\n        \"nome\": \"Marca 1787704819 Editada\",\n        \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n      }\n    }\n  ],\n  \"pagina\": 0,\n  \"tamanho\": 10,\n  \"totalElementos\": 1,\n  \"totalPaginas\": 1,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('envelope de paginacao', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.conteudo).to.be.an('array');",
+                  "    ['pagina','tamanho','totalElementos','totalPaginas','primeira','ultima']",
+                  "        .forEach(k => pm.expect(b).to.have.property(k));",
+                  "});",
+                  "pm.test('todos sao do cliente pedido', () => {",
+                  "    const id = Number(pm.collectionVariables.get('clienteEquipId'));",
+                  "    pm.response.json().conteudo.forEach(e => pm.expect(e.cliente.id).to.eql(id));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar equipamento por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos/{{equipamentoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos",
+                "{{equipamentoId}}"
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 - Equipamento encontrado",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos/{{equipamentoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos",
+                    "{{equipamentoId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 3,\n  \"nome\": \"Notebook Inspiron 15\",\n  \"criadoEm\": \"2026-08-25T21:40:41.117483\",\n  \"cliente\": {\n    \"id\": 1,\n    \"nome\": \"Vicente\"\n  },\n  \"marca\": {\n    \"id\": 4,\n    \"nome\": \"Marca 1787704819 Editada\",\n    \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('id confere', () => pm.expect(pm.response.json().id)",
+                  "    .to.eql(Number(pm.collectionVariables.get('equipamentoId'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualizar equipamento (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos/{{equipamentoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos",
+                "{{equipamentoId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"marcaId\": {{marcaEquipId}},\n  \"nome\": \"Notebook Inspiron 15 3520\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Altera nome e marca. **O cliente dono e imutavel** — nao ha `clienteId` aqui."
+          },
+          "response": [
+            {
+              "name": "200 - Equipamento atualizado",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos/{{equipamentoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos",
+                    "{{equipamentoId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"marcaId\": {{marcaId}},\n  \"nome\": \"Notebook Inspiron 15 3520\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Altera nome e marca. **O cliente dono e imutavel** — nao ha `clienteId` aqui."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 3,\n  \"nome\": \"Notebook Inspiron 15 3520\",\n  \"criadoEm\": \"2026-08-25T21:40:41.117483\",\n  \"cliente\": {\n    \"id\": 1,\n    \"nome\": \"Vicente\"\n  },\n  \"marca\": {\n    \"id\": 4,\n    \"nome\": \"Marca 1787704819 Editada\",\n    \"criadoEm\": \"2026-08-25T21:40:19.530329\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('nome atualizado', () => pm.expect(pm.response.json().nome).to.include('3520'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente acessando equipamento alheio (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos/{{equipamentoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos",
+                "{{equipamentoId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Regra de posse: o equipamento pertence a outro cliente. Rode **Login (cliente)** antes."
+          },
+          "response": [
+            {
+              "name": "403 - Acesso negado",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos/{{equipamentoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos",
+                    "{{equipamentoId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenCliente}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "Regra de posse: o equipamento pertence a outro cliente. Rode **Login (cliente)** antes."
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Voce nao tem permissao para acessar este recurso.\",\n  \"instance\": \"/equipamentos/3\",\n  \"status\": 403,\n  \"title\": \"Acesso negado\",\n  \"timestamp\": \"2026-08-26T00:40:41.653780762Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Marca inexistente (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": {{clienteEquipId}},\n  \"marcaId\": 999999,\n  \"nome\": \"Equipamento sem marca\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "404 - Marca nao encontrada",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clienteId\": {{clienteId}},\n  \"marcaId\": 999999,\n  \"nome\": \"Equipamento sem marca\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Marca nao encontrado(a) para o id 999999\",\n  \"instance\": \"/equipamentos\",\n  \"status\": 404,\n  \"title\": \"Recurso nao encontrado\",\n  \"timestamp\": \"2026-08-26T00:40:41.722409727Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validacao de campos (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": {{clienteEquipId}},\n  \"nome\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "`marcaId` ausente e `nome` vazio."
+          },
+          "response": [
+            {
+              "name": "400 - Dados invalidos",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clienteId\": {{clienteId}},\n  \"nome\": \"\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "`marcaId` ausente e `nome` vazio."
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Um ou mais campos falharam na validacao.\",\n  \"instance\": \"/equipamentos\",\n  \"status\": 400,\n  \"title\": \"Dados invalidos\",\n  \"timestamp\": \"2026-08-26T00:40:41.785525826Z\",\n  \"erros\": {\n    \"nome\": \"O nome e obrigatorio\",\n    \"marcaId\": \"A marca e obrigatoria\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('erros em marcaId e nome', () => {",
+                  "    const e = pm.response.json().erros;",
+                  "    pm.expect(e).to.have.property('marcaId');",
+                  "    pm.expect(e).to.have.property('nome');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente inativo (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": {{clienteInativoId}},\n  \"marcaId\": {{marcaEquipId}},\n  \"nome\": \"Equipamento bloqueado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Regra de negocio: nao se cadastra equipamento para cliente inativo. O pre-request cria um cliente proprio e o desativa; o teste o remove em seguida."
+          },
+          "response": [
+            {
+              "name": "422 - Cliente inativo",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clienteId\": {{clienteInativoId}},\n  \"marcaId\": {{marcaId}},\n  \"nome\": \"Equipamento bloqueado\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "description": "Regra de negocio: nao se cadastra equipamento para cliente inativo. Desative antes o cliente `{{clienteInativoId}}` via **PATCH /clientes/{id}/desativar**."
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Nao e possivel cadastrar equipamento para um cliente inativo.\",\n  \"instance\": \"/equipamentos\",\n  \"status\": 422,\n  \"title\": \"Regra de negocio violada\",\n  \"timestamp\": \"2026-08-26T00:40:41.883096439Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// cria um cliente proprio e o desativa, sem depender de nenhum id fixo",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const token = pm.collectionVariables.get('token');",
+                  "const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + token};",
+                  "pm.sendRequest({",
+                  "    url: base + '/clientes', method: 'POST', header: h,",
+                  "    body: {mode: 'raw', raw: JSON.stringify({",
+                  "        nome: 'Cliente Inativo', telefone: '4290000001',",
+                  "        usuario: {nome: 'Cliente Inativo',",
+                  "                  email: 'inativo.' + Date.now() + '@teste.com',",
+                  "                  senha: 'Cliente@123'}",
+                  "    })}",
+                  "}, (err, res) => {",
+                  "    const id = res.json().id;",
+                  "    pm.collectionVariables.set('clienteInativoId', id);",
+                  "    pm.sendRequest({url: base + '/clientes/' + id + '/desativar',",
+                  "        method: 'PATCH', header: h}, () => {});",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});",
+                  "",
+                  "// remove o cliente criado so para este cenario",
+                  "pm.sendRequest({url: pm.collectionVariables.get('baseUrl') + '/clientes/'",
+                  "    + pm.collectionVariables.get('clienteInativoId'), method: 'DELETE',",
+                  "    header: {Authorization: 'Bearer ' + pm.collectionVariables.get('token')}}, () => {});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir marca com equipamentos (409)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/marcas/{{marcaEquipId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "marcas",
+                "{{marcaEquipId}}"
+              ]
+            },
+            "description": "A FK `id_marca` de `equipamentos` e ON DELETE RESTRICT. Roda aqui, com o equipamento criado acima ainda vinculado."
+          },
+          "response": [
+            {
+              "name": "409 - Possui vinculos",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/marcas/{{marcaComVinculoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "marcas",
+                    "{{marcaComVinculoId}}"
+                  ]
+                },
+                "description": "A FK `id_marca` de `equipamentos` e ON DELETE RESTRICT. Roda aqui, com o equipamento criado acima ainda vinculado."
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"A operacao viola uma restricao do banco de dados. Verifique se o registro ja existe ou se possui vinculos que impedem a exclusao.\",\n  \"instance\": \"/marcas/4\",\n  \"status\": 409,\n  \"title\": \"Conflito de integridade\",\n  \"timestamp\": \"2026-08-26T00:40:41.980303991Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir equipamento (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos/{{equipamentoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos",
+                "{{equipamentoId}}"
+              ]
+            },
+            "description": "Equipamento usado em itens de OS devolve 409 (FK ON DELETE RESTRICT)."
+          },
+          "response": [
+            {
+              "name": "204 - Equipamento removido",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos/{{equipamentoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos",
+                    "{{equipamentoId}}"
+                  ]
+                },
+                "description": "Equipamento usado em itens de OS devolve 409 (FK ON DELETE RESTRICT)."
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": "",
+              "_postman_previewlanguage": "text"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+                  "pm.test('sem corpo', () => pm.expect(pm.response.text()).to.be.empty);",
+                  "",
+                  "// limpeza: equipamento do cliente, marca e cliente criados por esta pasta",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const token = pm.collectionVariables.get('token');",
+                  "const h = {Authorization: 'Bearer ' + token};",
+                  "pm.sendRequest({url: base + '/equipamentos/' + pm.collectionVariables.get('equipamentoDoClienteId'),",
+                  "    method: 'DELETE', header: h}, () => {",
+                  "    pm.sendRequest({url: base + '/marcas/' + pm.collectionVariables.get('marcaEquipId'),",
+                  "        method: 'DELETE', header: h}, () => {});",
+                  "    pm.sendRequest({url: base + '/clientes/' + pm.collectionVariables.get('clienteEquipId'),",
+                  "        method: 'DELETE', header: h}, () => {});",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sem token (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/equipamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "equipamentos"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Todas as rotas, nas tres pastas novas, exigem autenticacao."
+          },
+          "response": [
+            {
+              "name": "401 - Nao autenticado",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/equipamentos",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "equipamentos"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Todas as rotas, nas tres pastas novas, exigem autenticacao."
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Autenticacao necessaria.\",\n  \"instance\": \"/marcas\",\n  \"status\": 401,\n  \"title\": \"Nao autenticado\",\n  \"timestamp\": \"2026-08-26T00:40:42.274449466Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('erro em formato ProblemDetail', () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.property('title');",
+                  "    pm.expect(b).to.have.property('detail');",
+                  "    pm.expect(b).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -1020,6 +3913,56 @@
     {
       "key": "adminSenha",
       "value": "",
+      "type": "string"
+    },
+    {
+      "key": "marcaDescartavelId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "marcaId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "marcaNome",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "marcaComVinculoId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "servicoId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "equipamentoId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "equipamentoDoClienteId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "clienteInativoId",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "clienteEquipId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "marcaEquipId",
+      "value": "1",
       "type": "string"
     }
   ]

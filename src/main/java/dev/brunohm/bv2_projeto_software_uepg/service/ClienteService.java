@@ -7,8 +7,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +23,7 @@ import dev.brunohm.bv2_projeto_software_uepg.exception.RecursoDuplicadoException
 import dev.brunohm.bv2_projeto_software_uepg.exception.RecursoNaoEncontradoException;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ClienteRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.UsuarioRepository;
+import dev.brunohm.bv2_projeto_software_uepg.security.AutenticacaoAtual;
 import dev.brunohm.bv2_projeto_software_uepg.security.UsuarioAutenticado;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +36,7 @@ public class ClienteService {
     private final ClienteRepository clienteRepository;
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AutenticacaoAtual autenticacaoAtual;
 
     /**
      * Cria Usuario e Cliente na mesma transacao: a FK id_usuario e NOT NULL,
@@ -136,20 +136,12 @@ public class ClienteService {
 
     /** ADMIN acessa qualquer cliente; um CLIENTE so acessa o proprio cadastro. */
     private void garantirAcesso(Cliente cliente) {
-        UsuarioAutenticado autenticado = autenticado();
+        UsuarioAutenticado autenticado = autenticacaoAtual.usuario();
         if (autenticado.isAdmin()) {
             return;
         }
         if (!autenticado.getId().equals(cliente.getUsuario().getId())) {
             throw new AccessDeniedException("Voce so pode acessar o proprio cadastro.");
         }
-    }
-
-    private UsuarioAutenticado autenticado() {
-        Authentication autenticacao = SecurityContextHolder.getContext().getAuthentication();
-        if (autenticacao == null || !(autenticacao.getPrincipal() instanceof UsuarioAutenticado usuario)) {
-            throw new AccessDeniedException("Requisicao sem usuario autenticado.");
-        }
-        return usuario;
     }
 }
