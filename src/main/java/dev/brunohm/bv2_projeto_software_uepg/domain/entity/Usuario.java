@@ -3,9 +3,14 @@ package dev.brunohm.bv2_projeto_software_uepg.domain.entity;
 import java.time.LocalDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
+import dev.brunohm.bv2_projeto_software_uepg.domain.enums.RoleUsuario;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -37,6 +42,12 @@ public class Usuario {
 
     @Column(name = "senha", nullable = false, length = 255)
     private String senha;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "role", nullable = false, columnDefinition = "role_usuario")
+    private RoleUsuario role = RoleUsuario.CLIENTE;
 
     @CreationTimestamp
     @Column(name = "criado_em", nullable = false, updatable = false)

@@ -1,0 +1,1026 @@
+{
+  "info": {
+    "name": "API REST BV2 | Projeto UEPG",
+    "description": "# API REST BV2 - Assistencia Tecnica\nProjeto de Engenharia de Software - UEPG\n\n**Spring Boot | Java 21 | PostgreSQL | JWT (java-jwt / Auth0)**\n\nDocumentacao completa do endpoint **`/clientes`** (CRUD + autorizacao por papel) e da autenticacao que o protege. Todas as requisicoes foram **testadas e validadas** contra a aplicacao rodando localmente.\n\n## Como usar\n1. Suba a aplicacao (`./mvnw spring-boot:run`) na porta 8080 (ajuste `{{baseUrl}}` se necessario).\n2. Preencha `{{adminEmail}}` / `{{adminSenha}}` e rode **1. Autenticacao > Login (admin)** — o token e salvo em `{{token}}` e aplicado a toda a colecao.\n3. Rode **2. Clientes > Criar cliente**: gera e-mail unico e salva `{{clienteId}}`.\n4. Para os cenarios 403, rode **Login (cliente)** (salva `{{tokenCliente}}`).\n\n## Autorizacao\n| Papel | Pode |\n|---|---|\n| **ADMIN** | tudo: criar, listar, buscar, atualizar, ativar/desativar, excluir |\n| **CLIENTE** | apenas ler e editar o **proprio** cadastro |\n\n## Padrao de erros — ProblemDetail (RFC 7807)\n`type`, `title`, `status`, `detail`, `instance`, `timestamp` e, na validacao, um mapa `erros` (campo -> mensagem).\n\n## Endpoints de /clientes\n| Metodo | Rota | Papel | Descricao |\n|---|---|---|---|\n| POST | `/clientes` | ADMIN | Cria usuario + cliente (201) |\n| GET | `/clientes` | ADMIN | Lista paginada, filtros `nome`/`ativo` |\n| GET | `/clientes/{id}` | ADMIN ou dono | Busca por id |\n| PUT | `/clientes/{id}` | ADMIN ou dono | Atualiza nome e telefone |\n| PATCH | `/clientes/{id}/ativar` | ADMIN | Reativa (idempotente) |\n| PATCH | `/clientes/{id}/desativar` | ADMIN | Inativa (idempotente) |\n| DELETE | `/clientes/{id}` | ADMIN | Remove cliente + usuario (204) |",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Autenticacao",
+      "description": "Emissao de tokens JWT. Rode o **Login (admin)** primeiro: o token e salvo em `{{token}}` e reaproveitado em toda a colecao via Bearer no nivel da colecao.",
+      "item": [
+        {
+          "name": "Login (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Autentica o administrador e **salva o token automaticamente** em `{{token}}`. Nao e preciso copiar nada a mao.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"senha\": \"{{adminSenha}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 - Autenticado",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.<...>\",\n  \"tipo\": \"Bearer\",\n  \"expiraEm\": \"2026-08-20T04:22:41.359Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('devolve token Bearer', () => {",
+                  "  pm.expect(b).to.have.property('token');",
+                  "  pm.expect(b.tipo).to.eql('Bearer');",
+                  "});",
+                  "pm.collectionVariables.set('token', b.token);",
+                  "console.log('Token ADMIN salvo em {{token}} ate', b.expiraEm);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (cliente)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Autentica um usuario CLIENTE e salva o token em `{{tokenCliente}}`. Use-o para os cenarios de autorizacao (o cliente so acessa o proprio cadastro).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{clienteEmail}}\",\n  \"senha\": \"{{clienteSenha}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "200 - Autenticado",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.<...>\",\n  \"tipo\": \"Bearer\",\n  \"expiraEm\": \"2026-08-20T04:22:41.359Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('tokenCliente', b.token);",
+                  "console.log('Token CLIENTE salvo em {{tokenCliente}}');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - senha incorreta (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Credenciais invalidas devolvem **401** em formato ProblemDetail (RFC 7807).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"senha\": \"senha-errada\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "401 - Credenciais invalidas",
+              "originalRequest": {},
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Credenciais invalidas.\",\n  \"instance\": \"/auth/login\",\n  \"status\": 401,\n  \"title\": \"Nao autorizado\",\n  \"timestamp\": \"2026-08-20T02:20:00.000Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "const b = pm.response.json();",
+                  "pm.test('ProblemDetail', () => pm.expect(b).to.have.property('title'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Clientes (CRUD - ADMIN)",
+      "description": "Ciclo completo do recurso `/clientes`. **Criar cliente** gera um e-mail unico por execucao (pre-request) e salva `{{clienteId}}`, `{{clienteEmail}}` e `{{clienteSenha}}` para as requisicoes seguintes.",
+      "item": [
+        {
+          "name": "Criar cliente (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/clientes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes"
+              ]
+            },
+            "description": "Cria **Usuario + Cliente** na mesma transacao (a FK id_usuario e NOT NULL). O role do usuario e sempre CLIENTE. Retorna **201** com header `Location`. \n\nO pre-request script gera um e-mail unico para o cadastro nao colidir em reexecucoes.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Maria Souza\",\n  \"telefone\": \"4291112222\",\n  \"usuario\": {\n    \"nome\": \"Maria Souza\",\n    \"email\": \"{{clienteEmail}}\",\n    \"senha\": \"{{clienteSenha}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 - Cliente criado",
+              "originalRequest": {},
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 3,\n  \"nome\": \"Maria Souza\",\n  \"telefone\": \"4291112222\",\n  \"ativo\": true,\n  \"criadoEm\": \"2026-08-19T23:22:52.215\",\n  \"usuario\": {\n    \"id\": 5,\n    \"nome\": \"Maria Souza\",\n    \"email\": \"maria.1787192571@teste.com\",\n    \"role\": \"CLIENTE\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// e-mail unico por execucao para evitar 409 de duplicidade",
+                  "const email = 'maria.' + Date.now() + '@teste.com';",
+                  "pm.collectionVariables.set('clienteEmail', email);",
+                  "pm.collectionVariables.set('clienteSenha', 'Cliente@123');",
+                  "console.log('e-mail gerado:', email);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('header Location', () => pm.expect(pm.response.headers.get('Location')).to.be.a('string'));",
+                  "const b = pm.response.json();",
+                  "pm.test('corpo do cliente', () => {",
+                  "  pm.expect(b).to.have.property('id');",
+                  "  pm.expect(b.ativo).to.be.true;",
+                  "  pm.expect(b.usuario.role).to.eql('CLIENTE');",
+                  "});",
+                  "pm.collectionVariables.set('clienteId', b.id);",
+                  "console.log('clienteId salvo:', b.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar clientes (paginado)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes?page=0&size=20&sort=nome,asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "sort",
+                  "value": "nome,asc"
+                }
+              ]
+            },
+            "description": "Lista paginada (somente **ADMIN**). Envelope `PaginaResponse` proprio da API. Aceita `page`, `size` e `sort` (ex.: `nome,asc`)."
+          },
+          "response": [
+            {
+              "name": "200 - Pagina de clientes",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [\n    {\n      \"id\": 1,\n      \"nome\": \"Joao da Silva Junior\",\n      \"telefone\": \"4288887777\",\n      \"ativo\": true,\n      \"criadoEm\": \"2026-08-19T20:10:00\",\n      \"usuario\": {\n        \"id\": 2,\n        \"nome\": \"Joao\",\n        \"email\": \"joao@teste.com\",\n        \"role\": \"CLIENTE\"\n      }\n    }\n  ],\n  \"pagina\": 0,\n  \"tamanho\": 20,\n  \"totalElementos\": 1,\n  \"totalPaginas\": 1,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('envelope de paginacao', () => {",
+                  "  pm.expect(b).to.have.property('conteudo');",
+                  "  pm.expect(b).to.have.property('totalElementos');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar com filtros (nome + ativo)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes?nome=maria&ativo=true&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes"
+              ],
+              "query": [
+                {
+                  "key": "nome",
+                  "value": "maria"
+                },
+                {
+                  "key": "ativo",
+                  "value": "true"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Filtros opcionais: `nome` (busca parcial, case-insensitive) e `ativo` (true/false). Combinaveis com a paginacao."
+          },
+          "response": [
+            {
+              "name": "200 - Pagina filtrada",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [\n    {\n      \"id\": 1,\n      \"nome\": \"Joao da Silva Junior\",\n      \"telefone\": \"4288887777\",\n      \"ativo\": true,\n      \"criadoEm\": \"2026-08-19T20:10:00\",\n      \"usuario\": {\n        \"id\": 2,\n        \"nome\": \"Joao\",\n        \"email\": \"joao@teste.com\",\n        \"role\": \"CLIENTE\"\n      }\n    }\n  ],\n  \"pagina\": 0,\n  \"tamanho\": 20,\n  \"totalElementos\": 1,\n  \"totalPaginas\": 1,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes/{{clienteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes",
+                "{{clienteId}}"
+              ]
+            },
+            "description": "Busca um cliente pelo id. **ADMIN** acessa qualquer um; um **CLIENTE** so acessa o proprio cadastro (senao 403)."
+          },
+          "response": [
+            {
+              "name": "200 - Cliente encontrado",
+              "originalRequest": {},
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 3,\n  \"nome\": \"Maria Souza\",\n  \"telefone\": \"4291112222\",\n  \"ativo\": true,\n  \"criadoEm\": \"2026-08-19T23:22:52.215\",\n  \"usuario\": {\n    \"id\": 5,\n    \"nome\": \"Maria Souza\",\n    \"email\": \"maria.1787192571@teste.com\",\n    \"role\": \"CLIENTE\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('id confere', () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('clienteId'))));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualizar cliente (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/clientes/{{clienteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes",
+                "{{clienteId}}"
+              ]
+            },
+            "description": "Atualiza **apenas nome e telefone** (ADMIN ou o proprio cliente). E-mail e senha mudam em endpoint proprio de usuario.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Maria Souza Lima\",\n  \"telefone\": \"4299998888\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('dados atualizados', () => {",
+                  "  const b = pm.response.json();",
+                  "  pm.expect(b.nome).to.eql('Maria Souza Lima');",
+                  "  pm.expect(b.telefone).to.eql('4299998888');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Desativar cliente (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes/{{clienteId}}/desativar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes",
+                "{{clienteId}}",
+                "desativar"
+              ]
+            },
+            "description": "Inativa o cliente **sem apagar o historico** (soft-delete). **Idempotente**: nao falha se ja estiver inativo."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('ativo=false', () => pm.expect(pm.response.json().ativo).to.be.false);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ativar cliente (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes/{{clienteId}}/ativar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes",
+                "{{clienteId}}",
+                "ativar"
+              ]
+            },
+            "description": "Reativa o cliente. **Idempotente**."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('ativo=true', () => pm.expect(pm.response.json().ativo).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir cliente (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes/{{clienteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes",
+                "{{clienteId}}"
+              ]
+            },
+            "description": "Remocao **definitiva** do cliente e do usuario associado (ADMIN). Retorna **204 No Content**. Para o caso comum, prefira **Desativar**."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Autorizacao e casos de erro",
+      "description": "Regras de acesso e respostas de erro. Todos os erros seguem **ProblemDetail (RFC 7807)**.\n\n- **ADMIN**: acesso total.\n- **CLIENTE**: le/edita apenas o proprio cadastro; nao lista, nao ativa/desativa, nao exclui.",
+      "item": [
+        {
+          "name": "Sem token (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes"
+              ]
+            },
+            "description": "Requisicao sem `Authorization` e rejeitada com **401**.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validacao de campos (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/clientes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes"
+              ]
+            },
+            "description": "Corpo invalido retorna **400** com o mapa `erros` (campo -> mensagem).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"\",\n  \"telefone\": \"abc\",\n  \"usuario\": {\n    \"nome\": \"X\",\n    \"email\": \"nao-eh-email\",\n    \"senha\": \"123\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "400 - Dados invalidos",
+              "originalRequest": {},
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Um ou mais campos falharam na validacao.\",\n  \"instance\": \"/clientes\",\n  \"status\": 400,\n  \"title\": \"Dados invalidos\",\n  \"timestamp\": \"2026-08-20T02:23:18.296Z\",\n  \"erros\": {\n    \"usuario.senha\": \"A senha deve ter entre 8 e 72 caracteres\",\n    \"usuario.email\": \"E-mail em formato invalido\",\n    \"nome\": \"O nome e obrigatorio\",\n    \"telefone\": \"O telefone deve conter apenas digitos (10 a 13)\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "const b = pm.response.json();",
+                  "pm.test('mapa de erros por campo', () => {",
+                  "  pm.expect(b).to.have.property('erros');",
+                  "  pm.expect(b.erros).to.have.property('usuario.email');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "E-mail duplicado (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/clientes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes"
+              ]
+            },
+            "description": "Reenviar o mesmo e-mail ja cadastrado retorna **409 Recurso duplicado**. Rode logo apos **Criar cliente** (reaproveita `{{clienteEmail}}`).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Outra Pessoa\",\n  \"telefone\": \"4291110000\",\n  \"usuario\": {\n    \"nome\": \"Outra Pessoa\",\n    \"email\": \"{{clienteEmail}}\",\n    \"senha\": \"Senha@123\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "409 - E-mail duplicado",
+              "originalRequest": {},
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Ja existe um usuario cadastrado com o e-mail maria@teste.com\",\n  \"instance\": \"/clientes\",\n  \"status\": 409,\n  \"title\": \"Recurso duplicado\",\n  \"timestamp\": \"2026-08-20T02:23:18.336Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('title = Recurso duplicado', () => pm.expect(pm.response.json().title).to.include('duplicado'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente inexistente (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes",
+                "999999"
+              ]
+            },
+            "description": "Id inexistente retorna **404 Recurso nao encontrado**."
+          },
+          "response": [
+            {
+              "name": "404 - Nao encontrado",
+              "originalRequest": {},
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Cliente nao encontrado(a) para o id 999999\",\n  \"instance\": \"/clientes/999999\",\n  \"status\": 404,\n  \"title\": \"Recurso nao encontrado\",\n  \"timestamp\": \"2026-08-20T02:23:18.371Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('ProblemDetail 404', () => pm.expect(pm.response.json().status).to.eql(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente acessando outro cadastro (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes",
+                "1"
+              ]
+            },
+            "description": "Autenticado como **CLIENTE** (usa `{{tokenCliente}}`) tentando ler o cadastro de outro cliente -> **403**. Rode **Login (cliente)** antes.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "403 - Acesso negado",
+              "originalRequest": {},
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Voce nao tem permissao para acessar este recurso.\",\n  \"instance\": \"/clientes/4\",\n  \"status\": 403,\n  \"title\": \"Acesso negado\",\n  \"timestamp\": \"2026-08-20T02:23:34.716Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente tentando listar (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes"
+              ]
+            },
+            "description": "Listagem e **ADMIN-only**. Um CLIENTE recebe **403**. Usa `{{tokenCliente}}`.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "403 - Acesso negado",
+              "originalRequest": {},
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Voce nao tem permissao para acessar este recurso.\",\n  \"instance\": \"/clientes/4\",\n  \"status\": 403,\n  \"title\": \"Acesso negado\",\n  \"timestamp\": \"2026-08-20T02:23:34.716Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir cliente com vinculos (409)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clientes/{{clienteComVinculoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "clientes",
+                "{{clienteComVinculoId}}"
+              ]
+            },
+            "description": "Se o cliente possui equipamentos/ordens/notificacoes vinculados, as FKs sao **ON DELETE RESTRICT** e a exclusao retorna **409 Conflito de integridade**. Defina `{{clienteComVinculoId}}` com um id que tenha vinculos. (Cenario validado manualmente.)"
+          },
+          "response": [
+            {
+              "name": "409 - Possui vinculos",
+              "originalRequest": {},
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"A operacao viola uma restricao do banco de dados. Verifique se o registro ja existe ou se possui vinculos que impedem a exclusao.\",\n  \"instance\": \"/clientes/5\",\n  \"status\": 409,\n  \"title\": \"Conflito de integridade\",\n  \"timestamp\": \"2026-08-20T02:24:01.107Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenCliente",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "clienteId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "clienteComVinculoId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "clienteEmail",
+      "value": "maria@teste.com",
+      "type": "string"
+    },
+    {
+      "key": "clienteSenha",
+      "value": "Cliente@123",
+      "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "bv2uepg2026@gmail.com",
+      "type": "string"
+    },
+    {
+      "key": "adminSenha",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
