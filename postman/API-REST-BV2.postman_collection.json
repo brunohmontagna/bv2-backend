@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "API REST BV2 | Projeto UEPG",
-    "description": "# API REST BV2 - Assistencia Tecnica\nProjeto de Engenharia de Software - UEPG\n\n**Spring Boot 4 | Java 21 | PostgreSQL | JWT (java-jwt / Auth0)**\n\nDocumentacao dos endpoints **`/clientes`**, **`/marcas`**, **`/servicos`** e **`/equipamentos`**, mais a autenticacao que os protege. Todas as requisicoes foram **testadas e validadas** contra a aplicacao rodando localmente — as respostas salvas sao capturas reais.\n\n## Como usar\n1. Suba a aplicacao (`./mvnw spring-boot:run`) na porta 8080 (ajuste `{{baseUrl}}` se necessario).\n2. Preencha `{{adminEmail}}` / `{{adminSenha}}` e rode **1. Autenticacao > Login (admin)** — o token e salvo em `{{token}}` e aplicado a toda a colecao.\n3. Rode **2. Clientes > Criar cliente**: gera e-mail unico e salva `{{clienteId}}`.\n4. Para os cenarios 403, rode **Login (cliente)** (salva `{{tokenCliente}}`).\n5. As pastas 4 a 6 sao encadeadas: **Marcas** salva `{{marcaId}}`, usado por **Equipamentos**.\n\n## Autorizacao\nA unica diferenca entre os papeis e **sobre quais clientes cada um enxerga**:\n\n| Papel | Pode |\n|---|---|\n| **ADMIN** | tudo, sobre qualquer cliente |\n| **CLIENTE** | marcas e servicos por completo; nos proprios cadastro e equipamentos, tudo; nos alheios, nada (403) |\n\n## Padrao de erros - ProblemDetail (RFC 7807)\n`type`, `title`, `status`, `detail`, `instance`, `timestamp` e, na validacao, um mapa `erros` (campo -> mensagem).\n\n| Status | Quando |\n|---|---|\n| **400** | falha de Bean Validation ou JSON malformado |\n| **401** | sem token, token invalido ou expirado |\n| **403** | recurso de outro cliente |\n| **404** | id inexistente |\n| **409** | nome duplicado, ou exclusao barrada por FK `ON DELETE RESTRICT` |\n| **422** | regra de negocio (ex.: equipamento para cliente inativo) |\n\n## Endpoints\n### /clientes\n| Metodo | Rota | Papel | Descricao |\n|---|---|---|---|\n| POST | `/clientes` | ADMIN | Cria usuario + cliente (201) |\n| GET | `/clientes` | ADMIN | Lista paginada, filtros `nome`/`ativo` |\n| GET | `/clientes/{id}` | ADMIN ou dono | Busca por id |\n| PUT | `/clientes/{id}` | ADMIN ou dono | Atualiza nome e telefone |\n| PATCH | `/clientes/{id}/ativar` | ADMIN | Reativa (idempotente) |\n| PATCH | `/clientes/{id}/desativar` | ADMIN | Inativa (idempotente) |\n| DELETE | `/clientes/{id}` | ADMIN | Remove cliente + usuario (204) |\n\n### /marcas\n| Metodo | Rota | Descricao |\n|---|---|---|\n| POST | `/marcas` | Cria (201). `nome` e UNIQUE -> 409 se repetir |\n| GET | `/marcas` | Lista paginada, filtro `nome` |\n| GET | `/marcas/{id}` | Busca por id |\n| PUT | `/marcas/{id}` | Atualiza o nome |\n| DELETE | `/marcas/{id}` | Remove (204); 409 se houver equipamentos |\n\n### /servicos\n| Metodo | Rota | Descricao |\n|---|---|---|\n| POST | `/servicos` | Cria (201); nasce `ativo` com `contadorUso: 0` |\n| GET | `/servicos` | Lista paginada, filtros `nome`/`ativo` |\n| GET | `/servicos/{id}` | Busca por id |\n| PUT | `/servicos/{id}` | Atualiza nome, descricao e valor |\n| PATCH | `/servicos/{id}/ativar` | Reativa (idempotente) |\n| PATCH | `/servicos/{id}/desativar` | Inativa (idempotente) |\n| DELETE | `/servicos/{id}` | Remove (204); 409 se usado em OS |\n\n`contadorUso` e somente leitura — mantido pelas ordens de servico, nunca pelo corpo da requisicao.\n\n### /equipamentos\n| Metodo | Rota | Papel | Descricao |\n|---|---|---|---|\n| POST | `/equipamentos` | ADMIN ou proprio cliente | Cria (201); `clienteId` opcional para o cliente |\n| GET | `/equipamentos` | ambos | Lista paginada, filtros `clienteId`/`marcaId`/`nome` |\n| GET | `/equipamentos/{id}` | ADMIN ou dono | Busca por id |\n| PUT | `/equipamentos/{id}` | ADMIN ou dono | Atualiza nome e marca (dono e imutavel) |\n| DELETE | `/equipamentos/{id}` | ADMIN ou dono | Remove (204); 409 se usado em OS |",
+    "description": "# API REST BV2 - Assistencia Tecnica\nProjeto de Engenharia de Software - UEPG\n\n**Spring Boot 4 | Java 21 | PostgreSQL | JWT (java-jwt / Auth0)**\n\nDocumentacao dos endpoints **`/clientes`**, **`/marcas`**, **`/servicos`**, **`/equipamentos`**, **`/ordens-servico`** e do subrecurso **`/ordens-servico/{id}/itens`**, mais a autenticacao que os protege. Todas as requisicoes foram **testadas e validadas** contra a aplicacao rodando localmente — as respostas salvas sao capturas reais.\n\n## Como usar\n1. Suba a aplicacao (`./mvnw spring-boot:run`) na porta 8080 (ajuste `{{baseUrl}}` se necessario).\n2. Preencha `{{adminEmail}}` / `{{adminSenha}}` e rode **1. Autenticacao > Login (admin)** — o token e salvo em `{{token}}` e aplicado a toda a colecao.\n3. Rode **2. Clientes > Criar cliente**: gera e-mail unico e salva `{{clienteId}}`.\n4. Para os cenarios 403, rode **Login (cliente)** (salva `{{tokenCliente}}`).\n5. As pastas 4 a 6 sao encadeadas: **Marcas** salva `{{marcaId}}`, usado por **Equipamentos**.\n\n## Autorizacao\nA unica diferenca entre os papeis e **sobre quais clientes cada um enxerga**:\n\n| Papel | Pode |\n|---|---|\n| **ADMIN** | tudo, sobre qualquer cliente |\n| **CLIENTE** | marcas e servicos por completo; nos proprios cadastro e equipamentos, tudo; nos alheios, nada (403) |\n\n## Padrao de erros - ProblemDetail (RFC 7807)\n`type`, `title`, `status`, `detail`, `instance`, `timestamp` e, na validacao, um mapa `erros` (campo -> mensagem).\n\n| Status | Quando |\n|---|---|\n| **400** | falha de Bean Validation ou JSON malformado |\n| **401** | sem token, token invalido ou expirado |\n| **403** | recurso de outro cliente |\n| **404** | id inexistente |\n| **409** | nome duplicado, ou exclusao barrada por FK `ON DELETE RESTRICT` |\n| **422** | regra de negocio (ex.: equipamento para cliente inativo) |\n\n## Endpoints\n### /clientes\n| Metodo | Rota | Papel | Descricao |\n|---|---|---|---|\n| POST | `/clientes` | ADMIN | Cria usuario + cliente (201) |\n| GET | `/clientes` | ADMIN | Lista paginada, filtros `nome`/`ativo` |\n| GET | `/clientes/{id}` | ADMIN ou dono | Busca por id |\n| PUT | `/clientes/{id}` | ADMIN ou dono | Atualiza nome e telefone |\n| PATCH | `/clientes/{id}/ativar` | ADMIN | Reativa (idempotente) |\n| PATCH | `/clientes/{id}/desativar` | ADMIN | Inativa (idempotente) |\n| DELETE | `/clientes/{id}` | ADMIN | Remove cliente + usuario (204) |\n\n### /marcas\n| Metodo | Rota | Descricao |\n|---|---|---|\n| POST | `/marcas` | Cria (201). `nome` e UNIQUE -> 409 se repetir |\n| GET | `/marcas` | Lista paginada, filtro `nome` |\n| GET | `/marcas/{id}` | Busca por id |\n| PUT | `/marcas/{id}` | Atualiza o nome |\n| DELETE | `/marcas/{id}` | Remove (204); 409 se houver equipamentos |\n\n### /servicos\n| Metodo | Rota | Descricao |\n|---|---|---|\n| POST | `/servicos` | Cria (201); nasce `ativo` com `contadorUso: 0` |\n| GET | `/servicos` | Lista paginada, filtros `nome`/`ativo` |\n| GET | `/servicos/{id}` | Busca por id |\n| PUT | `/servicos/{id}` | Atualiza nome, descricao e valor |\n| PATCH | `/servicos/{id}/ativar` | Reativa (idempotente) |\n| PATCH | `/servicos/{id}/desativar` | Inativa (idempotente) |\n| DELETE | `/servicos/{id}` | Remove (204); 409 se usado em OS |\n\n`contadorUso` e somente leitura — mantido pelas ordens de servico, nunca pelo corpo da requisicao.\n\n### /equipamentos\n| Metodo | Rota | Papel | Descricao |\n|---|---|---|---|\n| POST | `/equipamentos` | ADMIN ou proprio cliente | Cria (201); `clienteId` opcional para o cliente |\n| GET | `/equipamentos` | ambos | Lista paginada, filtros `clienteId`/`marcaId`/`nome` |\n| GET | `/equipamentos/{id}` | ADMIN ou dono | Busca por id |\n| PUT | `/equipamentos/{id}` | ADMIN ou dono | Atualiza nome e marca (dono e imutavel) |\n| DELETE | `/equipamentos/{id}` | ADMIN ou dono | Remove (204); 409 se usado em OS |",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -3867,6 +3867,3041 @@
           ]
         }
       ]
+    },
+    {
+      "name": "7. OS (CRUD + Transição Status)",
+      "item": [
+        {
+          "name": "Criar OS (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ]
+            },
+            "description": "Abre a ordem de servico. O ADMIN informa o `clienteId`; o CLIENTE pode **omiti-lo** e a OS nasce no proprio nome (requisicao seguinte).\n\nA OS nasce **`EM_ANDAMENTO`** e com **`valorTotal: 0`** - a coluna e `NOT NULL` e o valor so passa a existir quando os itens sao lancados (pasta 8).\n\n`dataEntrada` e opcional e assume **hoje**; se informada, nao pode ser futura (**400**).\n\nO pre-request cria o cliente, a marca, os dois equipamentos e os tres servicos que as pastas 7 e 8 usam.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": {{clienteOsId}},\n  \"observacao\": \"Notebook nao liga e impressora com atolamento de papel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 - Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clienteId\": {{clienteOsId}},\n  \"observacao\": \"Notebook nao liga e impressora com atolamento de papel\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 5,\n  \"observacao\": \"Notebook nao liga e impressora com atolamento de papel\",\n  \"status\": \"EM_ANDAMENTO\",\n  \"dataEntrada\": \"2026-08-27\",\n  \"dataConcluida\": null,\n  \"dataEntregue\": null,\n  \"valorTotal\": 0,\n  \"criadoEm\": \"2026-08-27T20:34:58.569665\",\n  \"cliente\": {\n    \"id\": 21,\n    \"nome\": \"Dona de OS\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// a pasta cria as proprias fixtures (cliente, marca, equipamentos e servicos)",
+                  "// e remove tudo na ultima requisicao, para nao depender de nenhuma outra pasta",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const token = pm.collectionVariables.get('token');",
+                  "const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + token};",
+                  "const stamp = Date.now();",
+                  "const post = (path, corpo, cb) => pm.sendRequest({",
+                  "    url: base + path, method: 'POST', header: h,",
+                  "    body: {mode: 'raw', raw: JSON.stringify(corpo)}",
+                  "}, (e, r) => cb(r.json()));",
+                  "",
+                  "post('/clientes', {",
+                  "    nome: 'Dona de OS', telefone: '4290000001',",
+                  "    usuario: {nome: 'Dona de OS', email: 'dona.os.' + stamp + '@teste.com', senha: 'Cliente@123'}",
+                  "}, (cli) => {",
+                  "    pm.collectionVariables.set('clienteOsId', cli.id);",
+                  "    post('/marcas', {nome: 'Marca OS ' + stamp}, (m) => {",
+                  "        pm.collectionVariables.set('marcaOsId', m.id);",
+                  "        post('/equipamentos', {clienteId: cli.id, marcaId: m.id, nome: 'Notebook Aspire 5'},",
+                  "            (e1) => pm.collectionVariables.set('equipamentoOsId', e1.id));",
+                  "        post('/equipamentos', {clienteId: cli.id, marcaId: m.id, nome: 'Impressora L3150'},",
+                  "            (e2) => pm.collectionVariables.set('equipamentoOsId2', e2.id));",
+                  "    });",
+                  "});",
+                  "post('/servicos', {nome: 'Formatacao ' + stamp, descricao: 'Reinstalacao do SO', valor: 150.00},",
+                  "    (s1) => pm.collectionVariables.set('servicoOsId', s1.id));",
+                  "post('/servicos', {nome: 'Limpeza interna ' + stamp, descricao: 'Troca de pasta termica', valor: 80.50},",
+                  "    (s2) => pm.collectionVariables.set('servicoOsId2', s2.id));",
+                  "// o POST /servicos ignora \"ativo\": a desativacao so acontece pelo PATCH",
+                  "post('/servicos', {nome: 'Recuperacao CRT ' + stamp, descricao: 'Descontinuado', valor: 60.00}, (s3) => {",
+                  "    pm.collectionVariables.set('servicoInativoOsId', s3.id);",
+                  "    pm.sendRequest({url: base + '/servicos/' + s3.id + '/desativar', method: 'PATCH', header: h});",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Location aponta para a OS criada', () => {",
+                  "    pm.expect(pm.response.headers.get('Location')).to.include('/ordens-servico/');",
+                  "});",
+                  "const b = pm.response.json();",
+                  "pm.test('nasce EM_ANDAMENTO e com valorTotal zerado', () => {",
+                  "    pm.expect(b.status).to.eql('EM_ANDAMENTO');",
+                  "    pm.expect(Number(b.valorTotal)).to.eql(0);",
+                  "});",
+                  "pm.test('datas de conclusao e entrega ainda vazias', () => {",
+                  "    pm.expect(b.dataConcluida).to.be.null;",
+                  "    pm.expect(b.dataEntregue).to.be.null;",
+                  "});",
+                  "pm.collectionVariables.set('ordemServicoId', b.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar OS como CLIENTE (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ]
+            },
+            "description": "Mesma rota, token de **CLIENTE** e **sem `clienteId`**: o dono e resolvido a partir do usuario autenticado.\n\nE o fluxo normal de quem opera o proprio cadastro - o cliente nao precisa saber o proprio id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observacao\": \"Equipamento com tela trincada\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "201 - Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"observacao\": \"Equipamento com tela trincada\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenCliente}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 6,\n  \"observacao\": \"Equipamento com tela trincada\",\n  \"status\": \"EM_ANDAMENTO\",\n  \"dataEntrada\": \"2026-08-27\",\n  \"dataConcluida\": null,\n  \"dataEntregue\": null,\n  \"valorTotal\": 0,\n  \"criadoEm\": \"2026-08-27T20:37:51.202528\",\n  \"cliente\": {\n    \"id\": 3,\n    \"nome\": \"Bruno\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.test('o dono foi resolvido pelo token, nao pelo corpo', () => {",
+                  "    pm.expect(b.cliente.id).to.be.a('number');",
+                  "});",
+                  "pm.collectionVariables.set('osDoClienteId', b.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente abrindo OS para outro (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ]
+            },
+            "description": "O CLIENTE informou o `clienteId` de **outro** cadastro. A checagem de posse acontece no service (`garantirAcessoAoCliente`) e devolve **403** com `ProblemDetail`.\n\nCom o token ADMIN, este mesmo corpo devolve **201**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": {{clienteOsId}},\n  \"observacao\": \"tentativa de abrir no nome de outro\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "403 - Forbidden",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"clienteId\": {{clienteOsId}},\n  \"observacao\": \"tentativa de abrir no nome de outro\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenCliente}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Voce nao tem permissao para acessar este recurso.\",\n  \"instance\": \"/ordens-servico\",\n  \"status\": 403,\n  \"title\": \"Acesso negado\",\n  \"timestamp\": \"2026-08-27T23:37:51.333395810Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('ProblemDetail de acesso negado', () => {",
+                  "    pm.expect(pm.response.json().title).to.eql('Acesso negado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar OSs (paginado)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico?size=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "Listagem paginada no envelope `PaginaResponse`. A ordenacao padrao e **`dataEntrada` decrescente** (a OS mais recente primeiro).\n\nFiltros disponiveis: `clienteId`, `status`, `dataInicio` e `dataFim` (ISO `AAAA-MM-DD`, sobre a `dataEntrada`)."
+          },
+          "response": [
+            {
+              "name": "200 - OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico?size=5",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico"
+                  ],
+                  "query": [
+                    {
+                      "key": "size",
+                      "value": "5"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [\n    {\n      \"id\": 1,\n      \"observacao\": \"Notebook nao liga\",\n      \"status\": \"ENTREGUE\",\n      \"dataEntrada\": \"2026-08-27\",\n      \"dataConcluida\": \"2026-08-27\",\n      \"dataEntregue\": \"2026-08-27\",\n      \"valorTotal\": 640.5,\n      \"criadoEm\": \"2026-08-27T20:27:19.60496\",\n      \"cliente\": {\n        \"id\": 3,\n        \"nome\": \"Bruno\"\n      }\n    },\n    {\n      \"id\": 2,\n      \"observacao\": \"OS criada pelo admin\",\n      \"status\": \"CANCELADA\",\n      \"dataEntrada\": \"2026-08-27\",\n      \"dataConcluida\": null,\n      \"dataEntregue\": null,\n      \"valorTotal\": 150.0,\n      \"criadoEm\": \"2026-08-27T20:30:14.669145\",\n      \"cliente\": {\n        \"id\": 3,\n        \"nome\": \"Bruno\"\n      }\n    },\n    {\n      \"id\": 3,\n      \"observacao\": \"OS do Vitinho\",\n      \"status\": \"EM_ANDAMENTO\",\n      \"dataEntrada\": \"2026-08-27\",\n      \"dataConcluida\": null,\n      \"dataEntregue\": null,\n      \"valorTotal\": 0.0,\n      \"criadoEm\": \"2026-08-27T20:30:15.25103\",\n      \"cliente\": {\n        \"id\": 2,\n        \"nome\": \"Vitinho\"\n      }\n    },\n    {\n      \"id\": 5,\n      \"observacao\": \"Notebook nao liga e impressora com atolamento de papel\",\n      \"status\": \"EM_ANDAMENTO\",\n      \"dataEntrada\": \"2026-08-27\",\n      \"dataConcluida\": null,\n      \"dataEntregue\": null,\n      \"valorTotal\": 230.5,\n      \"criadoEm\": \"2026-08-27T20:34:58.569665\",\n      \"cliente\": {\n        \"id\": 21,\n        \"nome\": \"Dona de OS\"\n      }\n    }\n  ],\n  \"pagina\": 0,\n  \"tamanho\": 5,\n  \"totalElementos\": 4,\n  \"totalPaginas\": 1,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('envelope de paginacao', () => {",
+                  "    pm.expect(b).to.have.all.keys('conteudo', 'pagina', 'tamanho', 'totalElementos',",
+                  "                                  'totalPaginas', 'primeira', 'ultima');",
+                  "});",
+                  "pm.test('ordenado por dataEntrada desc', () => {",
+                  "    const d = b.conteudo.map((o) => o.dataEntrada);",
+                  "    pm.expect(d).to.eql(d.slice().sort().reverse());",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar com filtro (status)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico?status=EM_ANDAMENTO",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "EM_ANDAMENTO"
+                }
+              ]
+            },
+            "description": "Filtra pelo enum `StatusOs`. Valores aceitos: `EM_ANDAMENTO`, `CONCLUIDA`, `ENTREGUE`, `CANCELADA`."
+          },
+          "response": [
+            {
+              "name": "200 - OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico?status=EM_ANDAMENTO",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "EM_ANDAMENTO"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [\n    {\n      \"id\": 3,\n      \"observacao\": \"OS do Vitinho\",\n      \"status\": \"EM_ANDAMENTO\",\n      \"dataEntrada\": \"2026-08-27\",\n      \"dataConcluida\": null,\n      \"dataEntregue\": null,\n      \"valorTotal\": 0.0,\n      \"criadoEm\": \"2026-08-27T20:30:15.25103\",\n      \"cliente\": {\n        \"id\": 2,\n        \"nome\": \"Vitinho\"\n      }\n    }\n  ],\n  \"pagina\": 0,\n  \"tamanho\": 20,\n  \"totalElementos\": 1,\n  \"totalPaginas\": 1,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('so retorna OSs EM_ANDAMENTO', () => {",
+                  "    pm.response.json().conteudo.forEach((o) => pm.expect(o.status).to.eql('EM_ANDAMENTO'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar com filtro (periodo de entrada)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico?dataInicio=2020-01-01&dataFim=2020-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ],
+              "query": [
+                {
+                  "key": "dataInicio",
+                  "value": "2020-01-01"
+                },
+                {
+                  "key": "dataFim",
+                  "value": "2020-12-31"
+                }
+              ]
+            },
+            "description": "`dataInicio` e `dataFim` delimitam a **`dataEntrada`** (inclusive nas duas pontas). Cada uma funciona sozinha.\n\nO intervalo de 2020 nao alcanca nenhuma OS de teste, entao a pagina volta vazia - o que confirma que o filtro esta sendo aplicado."
+          },
+          "response": [
+            {
+              "name": "200 - OK (pagina vazia)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico?dataInicio=2020-01-01&dataFim=2020-12-31",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico"
+                  ],
+                  "query": [
+                    {
+                      "key": "dataInicio",
+                      "value": "2020-01-01"
+                    },
+                    {
+                      "key": "dataFim",
+                      "value": "2020-12-31"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [],\n  \"pagina\": 0,\n  \"tamanho\": 20,\n  \"totalElementos\": 0,\n  \"totalPaginas\": 0,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('nenhuma OS no intervalo de 2020', () => {",
+                  "    pm.expect(pm.response.json().totalElementos).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente listando (so ve as suas)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico?clienteId={{clienteOsId}}&size=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ],
+              "query": [
+                {
+                  "key": "clienteId",
+                  "value": "{{clienteOsId}}"
+                },
+                {
+                  "key": "size",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "A requisicao pede de proposito o `clienteId` de **outro** cliente. Para quem nao e ADMIN o service **sobrescreve** o filtro pelo id do proprio cliente, entao a resposta nunca vaza OS alheia - vem **200** com as ordens do proprio usuario, e nao 403.\n\nE o mesmo comportamento de `GET /equipamentos`.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 - OK (so as do proprio cliente)",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico?clienteId={{clienteOsId}}&size=50",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico"
+                  ],
+                  "query": [
+                    {
+                      "key": "clienteId",
+                      "value": "{{clienteOsId}}"
+                    },
+                    {
+                      "key": "size",
+                      "value": "50"
+                    }
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenCliente}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"conteudo\": [\n    {\n      \"id\": 1,\n      \"observacao\": \"Notebook nao liga\",\n      \"status\": \"ENTREGUE\",\n      \"dataEntrada\": \"2026-08-27\",\n      \"dataConcluida\": \"2026-08-27\",\n      \"dataEntregue\": \"2026-08-27\",\n      \"valorTotal\": 640.5,\n      \"criadoEm\": \"2026-08-27T20:27:19.60496\",\n      \"cliente\": {\n        \"id\": 3,\n        \"nome\": \"Bruno\"\n      }\n    },\n    {\n      \"id\": 2,\n      \"observacao\": \"OS criada pelo admin\",\n      \"status\": \"CANCELADA\",\n      \"dataEntrada\": \"2026-08-27\",\n      \"dataConcluida\": null,\n      \"dataEntregue\": null,\n      \"valorTotal\": 150.0,\n      \"criadoEm\": \"2026-08-27T20:30:14.669145\",\n      \"cliente\": {\n        \"id\": 3,\n        \"nome\": \"Bruno\"\n      }\n    }\n  ],\n  \"pagina\": 0,\n  \"tamanho\": 50,\n  \"totalElementos\": 2,\n  \"totalPaginas\": 1,\n  \"primeira\": true,\n  \"ultima\": true\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const alheio = Number(pm.collectionVariables.get('clienteOsId'));",
+                  "pm.test('o filtro clienteId de outro foi ignorado', () => {",
+                  "    pm.response.json().conteudo.forEach((o) => pm.expect(o.cliente.id).to.not.eql(alheio));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Buscar OS por id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}"
+              ]
+            },
+            "description": "Leitura individual. Liberada para o ADMIN e para o cliente dono; qualquer outro recebe **403**."
+          },
+          "response": [
+            {
+              "name": "200 - OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{ordemServicoId}}"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 5,\n  \"observacao\": \"Notebook nao liga e impressora com atolamento de papel\",\n  \"status\": \"EM_ANDAMENTO\",\n  \"dataEntrada\": \"2026-08-27\",\n  \"dataConcluida\": null,\n  \"dataEntregue\": null,\n  \"valorTotal\": 230.5,\n  \"criadoEm\": \"2026-08-27T20:34:58.569665\",\n  \"cliente\": {\n    \"id\": 21,\n    \"nome\": \"Dona de OS\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('e a OS pedida', () => {",
+                  "    pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('ordemServicoId')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualizar observacao (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}"
+              ]
+            },
+            "description": "O PUT so altera a **observacao**. O que ficou de fora, e por que:\n\n- **cliente** - o dono da OS e imutavel;\n- **status** - muda pelas rotas `PATCH /concluir`, `/entregar` e `/cancelar`;\n- **datas** - sao gravadas pela propria transicao de status;\n- **valorTotal** - e derivado dos itens (pasta 8).\n\nSó funciona enquanto a OS esta `EM_ANDAMENTO`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observacao\": \"cliente autorizou o orcamento por telefone\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 - OK",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{ordemServicoId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"observacao\": \"cliente autorizou o orcamento por telefone\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 5,\n  \"observacao\": \"cliente autorizou o orcamento por telefone\",\n  \"status\": \"EM_ANDAMENTO\",\n  \"dataEntrada\": \"2026-08-27\",\n  \"dataConcluida\": null,\n  \"dataEntregue\": null,\n  \"valorTotal\": 230.5,\n  \"criadoEm\": \"2026-08-27T20:34:58.569665\",\n  \"cliente\": {\n    \"id\": 21,\n    \"nome\": \"Dona de OS\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('observacao atualizada', () => {",
+                  "    pm.expect(b.observacao).to.eql('cliente autorizou o orcamento por telefone');",
+                  "});",
+                  "pm.test('status intacto', () => pm.expect(b.status).to.eql('EM_ANDAMENTO'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entregar sem concluir (422)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/entregar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "entregar"
+              ]
+            },
+            "description": "Transicao invalida: `EM_ANDAMENTO` -> `ENTREGUE` **pula** a conclusao.\n\nA regra existe em dois lugares. No banco, o trigger `trg_datas_os` (migration V6) faz `RAISE EXCEPTION`. Na aplicacao, o service barra antes e devolve **422** com mensagem legivel - sem a validacao em Java o cliente receberia um **500** generico do Postgres."
+          },
+          "response": [
+            {
+              "name": "422 - Unprocessable Entity",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/entregar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{ordemServicoId}}",
+                    "entregar"
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"A ordem de servico precisa ser concluida antes de ser entregue.\",\n  \"instance\": \"/ordens-servico/5/entregar\",\n  \"status\": 422,\n  \"title\": \"Regra de negocio violada\",\n  \"timestamp\": \"2026-08-27T23:34:59.180617846Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+                  "const b = pm.response.json();",
+                  "pm.test('regra de negocio, com mensagem util', () => {",
+                  "    pm.expect(b.title).to.eql('Regra de negocio violada');",
+                  "    pm.expect(b.detail).to.include('concluida antes');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Concluir OS (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/concluir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "concluir"
+              ]
+            },
+            "description": "`EM_ANDAMENTO` -> `CONCLUIDA`. A transicao grava a **`dataConcluida`** com a data de hoje.\n\nE **idempotente**: repetir em uma OS ja concluida devolve 200 sem alterar nada."
+          },
+          "response": [
+            {
+              "name": "200 - OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/concluir",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{ordemServicoId}}",
+                    "concluir"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 5,\n  \"observacao\": \"cliente autorizou o orcamento por telefone\",\n  \"status\": \"CONCLUIDA\",\n  \"dataEntrada\": \"2026-08-27\",\n  \"dataConcluida\": \"2026-08-27\",\n  \"dataEntregue\": null,\n  \"valorTotal\": 230.5,\n  \"criadoEm\": \"2026-08-27T20:34:58.569665\",\n  \"cliente\": {\n    \"id\": 21,\n    \"nome\": \"Dona de OS\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('status CONCLUIDA', () => pm.expect(b.status).to.eql('CONCLUIDA'));",
+                  "pm.test('dataConcluida preenchida na resposta', () => {",
+                  "    pm.expect(b.dataConcluida).to.not.be.null;",
+                  "    pm.expect(b.dataEntregue).to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Editar OS concluida (422)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}"
+              ]
+            },
+            "description": "Fora de `EM_ANDAMENTO` a OS vira historico: o PUT (e tambem a manutencao de itens) passa a responder **422**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observacao\": \"tarde demais\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "422 - Unprocessable Entity",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{ordemServicoId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"observacao\": \"tarde demais\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"So e possivel editar enquanto a ordem de servico esta EM_ANDAMENTO. Status atual: CONCLUIDA.\",\n  \"instance\": \"/ordens-servico/5\",\n  \"status\": 422,\n  \"title\": \"Regra de negocio violada\",\n  \"timestamp\": \"2026-08-27T23:34:59.470118392Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+                  "pm.test('a mensagem diz o status atual', () => {",
+                  "    pm.expect(pm.response.json().detail).to.include('EM_ANDAMENTO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entregar OS (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/entregar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "entregar"
+              ]
+            },
+            "description": "Agora a OS esta `CONCLUIDA`, entao a entrega e valida. A transicao grava a **`dataEntregue`** e fecha o ciclo."
+          },
+          "response": [
+            {
+              "name": "200 - OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/entregar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{ordemServicoId}}",
+                    "entregar"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 5,\n  \"observacao\": \"cliente autorizou o orcamento por telefone\",\n  \"status\": \"ENTREGUE\",\n  \"dataEntrada\": \"2026-08-27\",\n  \"dataConcluida\": \"2026-08-27\",\n  \"dataEntregue\": \"2026-08-27\",\n  \"valorTotal\": 230.5,\n  \"criadoEm\": \"2026-08-27T20:34:58.569665\",\n  \"cliente\": {\n    \"id\": 21,\n    \"nome\": \"Dona de OS\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('status ENTREGUE', () => pm.expect(b.status).to.eql('ENTREGUE'));",
+                  "pm.test('as duas datas preenchidas', () => {",
+                  "    pm.expect(b.dataConcluida).to.not.be.null;",
+                  "    pm.expect(b.dataEntregue).to.not.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Alterar OS entregue (422)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/concluir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}",
+                "concluir"
+              ]
+            },
+            "description": "`ENTREGUE` e estado terminal: nem concluir, nem cancelar. A OS entregue nao reabre."
+          },
+          "response": [
+            {
+              "name": "422 - Unprocessable Entity",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/concluir",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{ordemServicoId}}",
+                    "concluir"
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Ordem de servico ja entregue nao pode ter o status alterado.\",\n  \"instance\": \"/ordens-servico/5/concluir\",\n  \"status\": 422,\n  \"title\": \"Regra de negocio violada\",\n  \"timestamp\": \"2026-08-27T23:34:59.542693247Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+                  "pm.test('mensagem de OS ja entregue', () => {",
+                  "    pm.expect(pm.response.json().detail).to.include('ja entregue');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancelar OS (200)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osDoClienteId}}/cancelar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osDoClienteId}}",
+                "cancelar"
+              ]
+            },
+            "description": "O cancelamento sai de `EM_ANDAMENTO` **ou** de `CONCLUIDA`. Usa a OS criada com o token do proprio cliente, o que tambem mostra que o cliente transiciona as proprias ordens sem precisar do ADMIN.\n\n`CANCELADA` tambem e terminal: a requisicao seguinte confirma que nao ha reabertura.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 - OK",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osDoClienteId}}/cancelar",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osDoClienteId}}",
+                    "cancelar"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenCliente}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 6,\n  \"observacao\": \"Equipamento com tela trincada\",\n  \"status\": \"CANCELADA\",\n  \"dataEntrada\": \"2026-08-27\",\n  \"dataConcluida\": null,\n  \"dataEntregue\": null,\n  \"valorTotal\": 0.0,\n  \"criadoEm\": \"2026-08-27T20:37:51.202528\",\n  \"cliente\": {\n    \"id\": 3,\n    \"nome\": \"Bruno\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('status CANCELADA', () => pm.expect(pm.response.json().status).to.eql('CANCELADA'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reabrir OS cancelada (422)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osDoClienteId}}/concluir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osDoClienteId}}",
+                "concluir"
+              ]
+            },
+            "description": "Fecha a tabela de transicoes: uma OS cancelada nao volta para `CONCLUIDA` nem para `EM_ANDAMENTO`.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "422 - Unprocessable Entity",
+              "originalRequest": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osDoClienteId}}/concluir",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osDoClienteId}}",
+                    "concluir"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenCliente}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Ordem de servico cancelada nao pode ser reaberta.\",\n  \"instance\": \"/ordens-servico/6/concluir\",\n  \"status\": 422,\n  \"title\": \"Regra de negocio violada\",\n  \"timestamp\": \"2026-08-27T23:37:51.417485291Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+                  "pm.test('mensagem de OS cancelada', () => {",
+                  "    pm.expect(pm.response.json().detail).to.include('cancelada');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cliente acessando OS alheia (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{ordemServicoId}}"
+              ]
+            },
+            "description": "A OS pertence ao cliente criado pela pasta; o token e de outro. A posse e conferida no service e o `GlobalExceptionHandler` traduz o `AccessDeniedException` em **403**.\n\nVale para leitura, edicao, transicoes e itens - todas passam pela mesma checagem.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "403 - Forbidden",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{ordemServicoId}}"
+                  ]
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenCliente}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Forbidden",
+              "code": 403,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Voce nao tem permissao para acessar este recurso.\",\n  \"instance\": \"/ordens-servico/5\",\n  \"status\": 403,\n  \"title\": \"Acesso negado\",\n  \"timestamp\": \"2026-08-27T23:34:59.298807031Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', () => pm.response.to.have.status(403));",
+                  "pm.test('ProblemDetail de acesso negado', () => {",
+                  "    pm.expect(pm.response.json().title).to.eql('Acesso negado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sem token (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ]
+            },
+            "description": "Toda a API e `authenticated()`, com excecao de `POST /auth/login` e das rotas do Swagger. Sem `Authorization` o filtro JWT nem chega ao controller.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [
+            {
+              "name": "401 - Unauthorized",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico"
+                  ]
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Autenticacao necessaria.\",\n  \"instance\": \"/ordens-servico\",\n  \"status\": 401,\n  \"title\": \"Nao autenticado\",\n  \"timestamp\": \"2026-08-27T23:34:59.331967583Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+                  "pm.test('ProblemDetail de autenticacao', () => {",
+                  "    pm.expect(pm.response.json().title).to.eql('Nao autenticado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OS inexistente (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "999999"
+              ]
+            },
+            "description": "`RecursoNaoEncontradoException` -> **404**, no mesmo formato `ProblemDetail` dos demais recursos."
+          },
+          "response": [
+            {
+              "name": "404 - Not Found",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/999999",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "999999"
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Ordem de servico nao encontrado(a) para o id 999999\",\n  \"instance\": \"/ordens-servico/999999\",\n  \"status\": 404,\n  \"title\": \"Recurso nao encontrado\",\n  \"timestamp\": \"2026-08-27T23:34:59.378330250Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('ProblemDetail de recurso nao encontrado', () => {",
+                  "    pm.expect(pm.response.json().title).to.eql('Recurso nao encontrado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Status invalido (400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico?status=INVENTADO",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "INVENTADO"
+                }
+              ]
+            },
+            "description": "Valor fora do enum `StatusOs`. O `MethodArgumentTypeMismatchException` vira **400** antes de qualquer consulta ao banco."
+          },
+          "response": [
+            {
+              "name": "400 - Bad Request",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico?status=INVENTADO",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "INVENTADO"
+                    }
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"O valor 'INVENTADO' nao e valido para o parametro 'status'.\",\n  \"instance\": \"/ordens-servico\",\n  \"status\": 400,\n  \"title\": \"Parametro invalido\",\n  \"timestamp\": \"2026-08-27T23:34:59.412170574Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "pm.test('aponta o parametro invalido', () => {",
+                  "    pm.expect(pm.response.json().title).to.eql('Parametro invalido');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir OS (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osDescartavelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osDescartavelId}}"
+              ]
+            },
+            "description": "Exclusao definitiva, permitida apenas para OS **sem itens** (a tentativa com itens esta na pasta 8, com **422**).\n\nO teste tambem devolve o banco ao estado anterior: apaga os equipamentos, os servicos, a marca e o cliente criados pelo pre-request da primeira requisicao."
+          },
+          "response": [
+            {
+              "name": "204 - No Content",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osDescartavelId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osDescartavelId}}"
+                  ]
+                }
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": "",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// a OS principal terminou ENTREGUE (historico, nao se apaga): cria uma",
+                  "// descartavel, EM_ANDAMENTO e sem itens, so para exercitar o DELETE",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.collectionVariables.get('token')};",
+                  "pm.sendRequest({",
+                  "    url: base + '/ordens-servico', method: 'POST', header: h,",
+                  "    body: {mode: 'raw', raw: JSON.stringify({clienteId: Number(pm.collectionVariables.get('clienteOsId'))})}",
+                  "}, (e, r) => pm.collectionVariables.set('osDescartavelId', r.json().id));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+                  "pm.test('corpo vazio', () => pm.expect(pm.response.text()).to.be.empty);",
+                  "",
+                  "// remove as fixtures da pasta, na ordem que respeita as FKs ON DELETE RESTRICT",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const h = {Authorization: 'Bearer ' + pm.collectionVariables.get('token')};",
+                  "const del = (path) => pm.sendRequest({url: base + path, method: 'DELETE', header: h});",
+                  "['equipamentoOsId', 'equipamentoOsId2'].forEach((v) => del('/equipamentos/' + pm.collectionVariables.get(v)));",
+                  "['servicoOsId', 'servicoOsId2', 'servicoInativoOsId'].forEach((v) => del('/servicos/' + pm.collectionVariables.get(v)));",
+                  "setTimeout(() => {",
+                  "    del('/marcas/' + pm.collectionVariables.get('marcaOsId'));",
+                  "    del('/clientes/' + pm.collectionVariables.get('clienteOsId'));",
+                  "}, 400);"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "# Ordens de servico\n\n`OrdemServico` + `StatusOS`: **CRUD + transicoes de status**.\n\n## Quem pode o que\n\nA rota e a mesma para os dois papeis; o que muda e o **alcance**:\n\n| Token | Alcance |\n|---|---|\n| ADMIN | todas as ordens, de qualquer cliente |\n| CLIENTE | somente as proprias (o filtro `?clienteId` de outro e ignorado) |\n\nNao existe operacao exclusiva de ADMIN aqui: o cliente abre, edita, transiciona\ne exclui as **proprias** ordens. Acessar OS alheia devolve **403**.\n\n## Maquina de estados\n\nO `valorTotal` nasce em `0.00` e so muda pelos itens (pasta 8). As datas nao sao\nenviadas pelo cliente: sao gravadas pela propria transicao.\n\n| De \\\\ Para | CONCLUIDA | ENTREGUE | CANCELADA |\n|---|---|---|---|\n| **EM_ANDAMENTO** | 200 | **422** (precisa concluir antes) | 200 |\n| **CONCLUIDA** | 200 (idempotente) | 200 - grava `dataEntregue` | 200 |\n| **ENTREGUE** | **422** | 200 (idempotente) | **422** |\n| **CANCELADA** | **422** | **422** | 200 (idempotente) |\n\nA OS so e **mutavel enquanto EM_ANDAMENTO**: depois disso o PUT e os itens\nrespondem **422**. A mesma regra existe como trigger no banco (`trg_datas_os`,\nmigration V6); a validacao em Java existe para devolver 422 com mensagem legivel\nem vez do erro cru do Postgres."
+    },
+    {
+      "name": "8. Itens OS",
+      "item": [
+        {
+          "name": "Adicionar item (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}",
+                "itens"
+              ]
+            },
+            "description": "Lanca o primeiro item da OS. O `Location` aponta para `/ordens-servico/{id}/itens/{itemId}`.\n\nDois efeitos colaterais, ambos verificados pelos testes:\n\n1. o **`valorTotal`** da OS passa de `0.00` para `150.00` (o valor do servico);\n2. o **`contadorUso`** do servico e incrementado - e para isso que a coluna existe.\n\nA resposta traz recortes enxutos de equipamento e servico: o cliente ja aparece na propria OS, e `contadorUso`/`ativo` sao estado do catalogo, nao do item.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": {{servicoOsId}},\n  \"observacao\": \"cliente pediu backup dos documentos\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 - Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}",
+                    "itens"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": {{servicoOsId}},\n  \"observacao\": \"cliente pediu backup dos documentos\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 6,\n  \"observacao\": \"cliente pediu backup dos documentos\",\n  \"criadoEm\": \"2026-08-27T20:34:58.671488\",\n  \"equipamento\": {\n    \"id\": 39,\n    \"nome\": \"Notebook Aspire 5\"\n  },\n  \"servico\": {\n    \"id\": 28,\n    \"nome\": \"Formatacao com backup\",\n    \"valor\": 150.0\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// a pasta cria as proprias fixtures (cliente, marca, equipamentos e servicos)",
+                  "// e remove tudo na ultima requisicao, para nao depender de nenhuma outra pasta",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const token = pm.collectionVariables.get('token');",
+                  "const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + token};",
+                  "const stamp = Date.now();",
+                  "const post = (path, corpo, cb) => pm.sendRequest({",
+                  "    url: base + path, method: 'POST', header: h,",
+                  "    body: {mode: 'raw', raw: JSON.stringify(corpo)}",
+                  "}, (e, r) => cb(r.json()));",
+                  "",
+                  "post('/clientes', {",
+                  "    nome: 'Dona de OS', telefone: '4290000001',",
+                  "    usuario: {nome: 'Dona de OS', email: 'dona.os.' + stamp + '@teste.com', senha: 'Cliente@123'}",
+                  "}, (cli) => {",
+                  "    pm.collectionVariables.set('clienteOsId', cli.id);",
+                  "    post('/marcas', {nome: 'Marca OS ' + stamp}, (m) => {",
+                  "        pm.collectionVariables.set('marcaOsId', m.id);",
+                  "        post('/equipamentos', {clienteId: cli.id, marcaId: m.id, nome: 'Notebook Aspire 5'},",
+                  "            (e1) => pm.collectionVariables.set('equipamentoOsId', e1.id));",
+                  "        post('/equipamentos', {clienteId: cli.id, marcaId: m.id, nome: 'Impressora L3150'},",
+                  "            (e2) => pm.collectionVariables.set('equipamentoOsId2', e2.id));",
+                  "    });",
+                  "});",
+                  "post('/servicos', {nome: 'Formatacao ' + stamp, descricao: 'Reinstalacao do SO', valor: 150.00},",
+                  "    (s1) => pm.collectionVariables.set('servicoOsId', s1.id));",
+                  "post('/servicos', {nome: 'Limpeza interna ' + stamp, descricao: 'Troca de pasta termica', valor: 80.50},",
+                  "    (s2) => pm.collectionVariables.set('servicoOsId2', s2.id));",
+                  "// o POST /servicos ignora \"ativo\": a desativacao so acontece pelo PATCH",
+                  "post('/servicos', {nome: 'Recuperacao CRT ' + stamp, descricao: 'Descontinuado', valor: 60.00}, (s3) => {",
+                  "    pm.collectionVariables.set('servicoInativoOsId', s3.id);",
+                  "    pm.sendRequest({url: base + '/servicos/' + s3.id + '/desativar', method: 'PATCH', header: h});",
+                  "});",
+                  "",
+                  "// alem das fixtures, esta pasta precisa de uma OS EM_ANDAMENTO para receber os itens",
+                  "setTimeout(() => {",
+                  "    pm.sendRequest({",
+                  "        url: base + '/ordens-servico', method: 'POST', header: h,",
+                  "        body: {mode: 'raw', raw: JSON.stringify({",
+                  "            clienteId: Number(pm.collectionVariables.get('clienteOsId')),",
+                  "            observacao: 'OS de teste dos itens'",
+                  "        })}",
+                  "    }, (e, r) => pm.collectionVariables.set('osItensId', r.json().id));",
+                  "}, 600);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.test('Location aponta para o item criado', () => {",
+                  "    pm.expect(pm.response.headers.get('Location')).to.include('/itens/');",
+                  "});",
+                  "const b = pm.response.json();",
+                  "pm.test('traz o resumo de equipamento e servico', () => {",
+                  "    pm.expect(b.equipamento).to.have.all.keys('id', 'nome');",
+                  "    pm.expect(b.servico).to.have.all.keys('id', 'nome', 'valor');",
+                  "});",
+                  "pm.collectionVariables.set('itemOsId', b.id);",
+                  "",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const h = {Authorization: 'Bearer ' + pm.collectionVariables.get('token')};",
+                  "pm.sendRequest({url: base + '/ordens-servico/' + pm.collectionVariables.get('osItensId'), header: h},",
+                  "    (e, r) => pm.test('valorTotal da OS recalculado para 150.00',",
+                  "        () => pm.expect(Number(r.json().valorTotal)).to.eql(150.00)));",
+                  "pm.sendRequest({url: base + '/servicos/' + pm.collectionVariables.get('servicoOsId'), header: h},",
+                  "    (e, r) => pm.test('contadorUso do servico incrementado',",
+                  "        () => pm.expect(r.json().contadorUso).to.be.above(0)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Adicionar segundo item (201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}",
+                "itens"
+              ]
+            },
+            "description": "Segundo par, com outro equipamento e outro servico - e a composicao tipica: varios aparelhos do mesmo cliente na mesma ordem.\n\n`observacao` e opcional. O `valorTotal` sobe para **230.50** (`150.00 + 80.50`).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipamentoId\": {{equipamentoOsId2}},\n  \"servicoId\": {{servicoOsId2}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "201 - Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}",
+                    "itens"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"equipamentoId\": {{equipamentoOsId2}},\n  \"servicoId\": {{servicoOsId2}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 7,\n  \"observacao\": null,\n  \"criadoEm\": \"2026-08-27T20:34:58.791002\",\n  \"equipamento\": {\n    \"id\": 40,\n    \"nome\": \"Impressora L3150\"\n  },\n  \"servico\": {\n    \"id\": 29,\n    \"nome\": \"Limpeza interna\",\n    \"valor\": 80.5\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('itemOsId2', pm.response.json().id);",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "pm.sendRequest({url: base + '/ordens-servico/' + pm.collectionVariables.get('osItensId'),",
+                  "                header: {Authorization: 'Bearer ' + pm.collectionVariables.get('token')}},",
+                  "    (e, r) => pm.test('valorTotal soma os dois servicos (230.50)',",
+                  "        () => pm.expect(Number(r.json().valorTotal)).to.eql(230.50)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar itens da OS",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}",
+                "itens"
+              ]
+            },
+            "description": "Retorna um **array puro**, sem o envelope `PaginaResponse` usado nas listagens de raiz.\n\nE deliberado: os itens sao a composicao de uma unica OS, uma colecao pequena e sempre consumida por inteiro junto com ela. Paginar aqui so atrapalharia quem monta a tela da ordem.\n\nA ordem e a de insercao (`id` crescente)."
+          },
+          "response": [
+            {
+              "name": "200 - OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}",
+                    "itens"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "[\n  {\n    \"id\": 6,\n    \"observacao\": \"cliente pediu backup dos documentos\",\n    \"criadoEm\": \"2026-08-27T20:34:58.671488\",\n    \"equipamento\": {\n      \"id\": 39,\n      \"nome\": \"Notebook Aspire 5\"\n    },\n    \"servico\": {\n      \"id\": 28,\n      \"nome\": \"Formatacao com backup\",\n      \"valor\": 150.0\n    }\n  },\n  {\n    \"id\": 7,\n    \"observacao\": null,\n    \"criadoEm\": \"2026-08-27T20:34:58.791002\",\n    \"equipamento\": {\n      \"id\": 40,\n      \"nome\": \"Impressora L3150\"\n    },\n    \"servico\": {\n      \"id\": 29,\n      \"nome\": \"Limpeza interna\",\n      \"valor\": 80.5\n    }\n  }\n]",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('array puro, sem envelope de paginacao', () => pm.expect(b).to.be.an('array'));",
+                  "pm.test('os dois itens lancados', () => pm.expect(b.length).to.eql(2));",
+                  "pm.test('ordenado por id crescente', () => {",
+                  "    pm.expect(b.map((i) => i.id)).to.eql(b.map((i) => i.id).slice().sort((x, y) => x - y));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atualizar observacao do item (PUT)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens/{{itemOsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}",
+                "itens",
+                "{{itemOsId}}"
+              ]
+            },
+            "description": "O PUT do item aceita **so a observacao**.\n\nEquipamento e servico ficam de fora porque, junto com a OS, formam a chave unica `uq_item_os_os_equip_servico`: troca-los seria criar outro item, nao editar este. O caminho e remover e adicionar.\n\nComo a observacao nao mexe em preco, o `valorTotal` **nao** e recalculado.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observacao\": \"backup entregue em pendrive\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "200 - OK",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens/{{itemOsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}",
+                    "itens",
+                    "{{itemOsId}}"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"observacao\": \"backup entregue em pendrive\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": 6,\n  \"observacao\": \"backup entregue em pendrive\",\n  \"criadoEm\": \"2026-08-27T20:34:58.671488\",\n  \"equipamento\": {\n    \"id\": 39,\n    \"nome\": \"Notebook Aspire 5\"\n  },\n  \"servico\": {\n    \"id\": 28,\n    \"nome\": \"Formatacao com backup\",\n    \"valor\": 150.0\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('observacao atualizada', () => pm.expect(b.observacao).to.eql('backup entregue em pendrive'));",
+                  "pm.test('equipamento e servico intactos', () => {",
+                  "    pm.expect(b.equipamento.id).to.eql(Number(pm.collectionVariables.get('equipamentoOsId')));",
+                  "    pm.expect(b.servico.id).to.eql(Number(pm.collectionVariables.get('servicoOsId')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Item duplicado (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}",
+                "itens"
+              ]
+            },
+            "description": "Repete um par equipamento+servico que ja existe na OS.\n\nA UNIQUE `uq_item_os_os_equip_servico` (migration V7) garante isso no banco; o service confere antes para trocar o erro cru de integridade por um **409** com mensagem propria.\n\nO mesmo servico **em outro equipamento** da mesma OS e valido - a chave inclui o equipamento.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": {{servicoOsId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "409 - Conflict",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}",
+                    "itens"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": {{servicoOsId}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Este servico ja foi lancado para este equipamento nesta ordem de servico.\",\n  \"instance\": \"/ordens-servico/5/itens\",\n  \"status\": 409,\n  \"title\": \"Recurso duplicado\",\n  \"timestamp\": \"2026-08-27T23:34:59.020701056Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "pm.test('ProblemDetail de recurso duplicado', () => {",
+                  "    pm.expect(pm.response.json().title).to.eql('Recurso duplicado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Equipamento de outro cliente (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osClienteItensId}}/itens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osClienteItensId}}",
+                "itens"
+              ]
+            },
+            "description": "Regra central da composicao: **o equipamento tem que ser do mesmo cliente da OS**. Sem ela seria possivel faturar o conserto do aparelho de um cliente na ordem de outro.\n\nO banco nao cobre esse caso - as FKs garantem apenas que equipamento e OS existem, nao que apontam para o mesmo cliente. A validacao vive no service.\n\nO pre-request abre uma OS com o token do proprio cliente; o equipamento enviado e o da fixture, que pertence a outro cadastro.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": {{servicoOsId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenCliente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "422 - Unprocessable Entity",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osClienteItensId}}/itens",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osClienteItensId}}",
+                    "itens"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": {{servicoOsId}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{tokenCliente}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"O equipamento nao pertence ao cliente desta ordem de servico.\",\n  \"instance\": \"/ordens-servico/6/itens\",\n  \"status\": 422,\n  \"title\": \"Regra de negocio violada\",\n  \"timestamp\": \"2026-08-27T23:37:51.297761070Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// OS EM_ANDAMENTO do proprio cliente do token: a osDoClienteId da pasta 7",
+                  "// termina CANCELADA, e ai o 422 viria da regra de status, nao da de posse",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.collectionVariables.get('tokenCliente')};",
+                  "pm.sendRequest({",
+                  "    url: base + '/ordens-servico', method: 'POST', header: h,",
+                  "    body: {mode: 'raw', raw: JSON.stringify({observacao: 'OS do cliente para o teste de posse'})}",
+                  "}, (e, r) => pm.collectionVariables.set('osClienteItensId', r.json().id));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+                  "pm.test('mensagem sobre o dono do equipamento', () => {",
+                  "    pm.expect(pm.response.json().detail).to.include('nao pertence ao cliente');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Servico inativo (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}",
+                "itens"
+              ]
+            },
+            "description": "Servico fora do catalogo ativo nao entra em ordem nova.\n\nE o motivo de `/servicos` ter `ativo` em vez de apagar o registro: o servico descontinuado continua existindo para as OSs antigas que ja o referenciam, mas para de ser oferecido.\n\nO pre-request da primeira requisicao cria este servico e o desativa via `PATCH /servicos/{id}/desativar` - o `POST /servicos` ignora o campo `ativo`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": {{servicoInativoOsId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "422 - Unprocessable Entity",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}",
+                    "itens"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": {{servicoInativoOsId}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Nao e possivel adicionar um servico inativo a ordem de servico.\",\n  \"instance\": \"/ordens-servico/5/itens\",\n  \"status\": 422,\n  \"title\": \"Regra de negocio violada\",\n  \"timestamp\": \"2026-08-27T23:34:59.066059903Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+                  "pm.test('mensagem sobre servico inativo', () => {",
+                  "    pm.expect(pm.response.json().detail).to.include('inativo');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Servico inexistente (404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}",
+                "itens"
+              ]
+            },
+            "description": "Id que nao existe no catalogo -> **404**. Vale igual para `equipamentoId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": 999999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "404 - Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}",
+                    "itens"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": 999999\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Servico nao encontrado(a) para o id 999999\",\n  \"instance\": \"/ordens-servico/8/itens\",\n  \"status\": 404,\n  \"title\": \"Recurso nao encontrado\",\n  \"timestamp\": \"2026-08-27T23:38:05.286401317Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('aponta qual recurso faltou', () => {",
+                  "    pm.expect(pm.response.json().detail).to.include('Servico');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validacao de campos (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}",
+                "itens"
+              ]
+            },
+            "description": "`servicoId` ausente. O Bean Validation barra antes do service e o handler devolve **400** com o mapa `erros` (campo -> mensagem), o mesmo formato das outras pastas.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "400 - Bad Request",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}",
+                    "itens"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Um ou mais campos falharam na validacao.\",\n  \"instance\": \"/ordens-servico/5/itens\",\n  \"status\": 400,\n  \"title\": \"Dados invalidos\",\n  \"timestamp\": \"2026-08-27T23:34:59.103694166Z\",\n  \"erros\": {\n    \"servicoId\": \"O servico e obrigatorio\"\n  }\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "const b = pm.response.json();",
+                  "pm.test('mapa de erros por campo', () => {",
+                  "    pm.expect(b.title).to.eql('Dados invalidos');",
+                  "    pm.expect(b.erros).to.have.property('servicoId');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Item inexistente (404)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}",
+                "itens",
+                "999999"
+              ]
+            },
+            "description": "Um item **de outra OS** tambem cai aqui como **404**, e nao 403: pela rota informada ele realmente nao existe, e distinguir os dois casos vazaria a existencia de itens alheios.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"observacao\": \"item que nao existe\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "404 - Not Found",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens/999999",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}",
+                    "itens",
+                    "999999"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"observacao\": \"item que nao existe\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"Item da ordem de servico nao encontrado(a) para o id 999999\",\n  \"instance\": \"/ordens-servico/8/itens/999999\",\n  \"status\": 404,\n  \"title\": \"Recurso nao encontrado\",\n  \"timestamp\": \"2026-08-27T23:38:05.323260336Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "pm.test('ProblemDetail de recurso nao encontrado', () => {",
+                  "    pm.expect(pm.response.json().title).to.eql('Recurso nao encontrado');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Excluir OS com itens (422)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}"
+              ]
+            },
+            "description": "A FK `id_ordem_servico` de `itens_os` e `ON DELETE RESTRICT`: o banco recusaria a exclusao com um erro de integridade generico.\n\nO service confere antes e devolve **422** dizendo o que fazer - remover os itens primeiro. E o mesmo motivo do `flush()` explicito no `excluir`: fazer a violacao aparecer na requisicao, e nao no commit."
+          },
+          "response": [
+            {
+              "name": "422 - Unprocessable Entity",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}"
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"A ordem de servico possui itens. Remova os itens antes de exclui-la.\",\n  \"instance\": \"/ordens-servico/5\",\n  \"status\": 422,\n  \"title\": \"Regra de negocio violada\",\n  \"timestamp\": \"2026-08-27T23:34:59.143917280Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+                  "pm.test('a mensagem diz o que fazer', () => {",
+                  "    pm.expect(pm.response.json().detail).to.include('Remova os itens');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Adicionar item em OS concluida (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osConcluidaId}}/itens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osConcluidaId}}",
+                "itens"
+              ]
+            },
+            "description": "A composicao so muda enquanto a OS esta `EM_ANDAMENTO`. Depois de concluida ela vira historico: nada de adicionar, editar ou remover itens - o `valorTotal` fechado e o que foi cobrado.\n\nVale para `POST`, `PUT` e `DELETE` de itens, e tambem para o `PUT` da propria OS.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": {{servicoOsId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "name": "422 - Unprocessable Entity",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osConcluidaId}}/itens",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osConcluidaId}}",
+                    "itens"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"equipamentoId\": {{equipamentoOsId}},\n  \"servicoId\": {{servicoOsId}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"detail\": \"So e possivel adicionar itens enquanto a ordem de servico esta EM_ANDAMENTO. Status atual: CONCLUIDA.\",\n  \"instance\": \"/ordens-servico/5/itens\",\n  \"status\": 422,\n  \"title\": \"Regra de negocio violada\",\n  \"timestamp\": \"2026-08-27T23:34:59.479275578Z\"\n}",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// OS propria para este cenario: criada e concluida aqui, para nao travar a OS",
+                  "// principal da pasta (uma OS concluida nao aceita mais remocao de itens)",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.collectionVariables.get('token')};",
+                  "pm.sendRequest({",
+                  "    url: base + '/ordens-servico', method: 'POST', header: h,",
+                  "    body: {mode: 'raw', raw: JSON.stringify({clienteId: Number(pm.collectionVariables.get('clienteOsId'))})}",
+                  "}, (e, r) => {",
+                  "    const id = r.json().id;",
+                  "    pm.collectionVariables.set('osConcluidaId', id);",
+                  "    pm.sendRequest({url: base + '/ordens-servico/' + id + '/concluir', method: 'PATCH', header: h});",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+                  "pm.test('a mensagem informa o status atual', () => {",
+                  "    pm.expect(pm.response.json().detail).to.include('CONCLUIDA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remover item (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens/{{itemOsId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}",
+                "itens",
+                "{{itemOsId}}"
+              ]
+            },
+            "description": "Remove o primeiro item. Os dois efeitos da adicao sao desfeitos:\n\n- o `valorTotal` da OS cai de `230.50` para **`80.50`** (sobra o segundo servico);\n- o `contadorUso` do servico e decrementado, com piso em zero por causa do `CHECK chk_servicos_contador_uso_positivo`."
+          },
+          "response": [
+            {
+              "name": "204 - No Content",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens/{{itemOsId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}",
+                    "itens",
+                    "{{itemOsId}}"
+                  ]
+                }
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": "",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "pm.sendRequest({url: base + '/ordens-servico/' + pm.collectionVariables.get('osItensId'),",
+                  "                header: {Authorization: 'Bearer ' + pm.collectionVariables.get('token')}},",
+                  "    (e, r) => pm.test('valorTotal recalculado para 80.50',",
+                  "        () => pm.expect(Number(r.json().valorTotal)).to.eql(80.50)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Limpar a OS de teste (204)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ordens-servico",
+                "{{osItensId}}"
+              ]
+            },
+            "description": "Fecha a pasta devolvendo o banco ao estado anterior: esvazia a OS, apaga a ordem e, no teste, remove os equipamentos, servicos, marca e cliente criados pelo pre-request da primeira requisicao.\n\nA OS concluida do cenario anterior fica: ela nao tem itens, mas tambem nao pode ser excluida enquanto o cliente existir - por isso a limpeza a apaga antes do cliente."
+          },
+          "response": [
+            {
+              "name": "204 - No Content",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/ordens-servico/{{osItensId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "ordens-servico",
+                    "{{osItensId}}"
+                  ]
+                }
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [],
+              "body": "",
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// esvazia a OS antes do DELETE: com itens ela responderia 422",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const h = {Authorization: 'Bearer ' + pm.collectionVariables.get('token')};",
+                  "pm.sendRequest({url: base + '/ordens-servico/' + pm.collectionVariables.get('osItensId')",
+                  "                + '/itens/' + pm.collectionVariables.get('itemOsId2'), method: 'DELETE', header: h});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+                  "const osConcluida = pm.collectionVariables.get('osConcluidaId');",
+                  "pm.sendRequest({url: pm.collectionVariables.get('baseUrl') + '/ordens-servico/' + osConcluida,",
+                  "                method: 'DELETE', header: {Authorization: 'Bearer ' + pm.collectionVariables.get('token')}});",
+                  "pm.sendRequest({url: pm.collectionVariables.get('baseUrl') + '/ordens-servico/'",
+                  "                     + pm.collectionVariables.get('osClienteItensId'),",
+                  "                method: 'DELETE',",
+                  "                header: {Authorization: 'Bearer ' + pm.collectionVariables.get('tokenCliente')}});",
+                  "",
+                  "// remove as fixtures da pasta, na ordem que respeita as FKs ON DELETE RESTRICT",
+                  "const base = pm.collectionVariables.get('baseUrl');",
+                  "const h = {Authorization: 'Bearer ' + pm.collectionVariables.get('token')};",
+                  "const del = (path) => pm.sendRequest({url: base + path, method: 'DELETE', header: h});",
+                  "['equipamentoOsId', 'equipamentoOsId2'].forEach((v) => del('/equipamentos/' + pm.collectionVariables.get(v)));",
+                  "['servicoOsId', 'servicoOsId2', 'servicoInativoOsId'].forEach((v) => del('/servicos/' + pm.collectionVariables.get(v)));",
+                  "setTimeout(() => {",
+                  "    del('/marcas/' + pm.collectionVariables.get('marcaOsId'));",
+                  "    del('/clientes/' + pm.collectionVariables.get('clienteOsId'));",
+                  "}, 400);"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "# Itens da ordem de servico\n\n`ItemOS` exposto como **subrecurso de composicao** em `/ordens-servico/{id}/itens`.\nUm item nao existe fora de uma OS: nao ha rota `/itens` na raiz, e a permissao do\nitem **e a permissao da OS** - quem nao pode ver a ordem recebe **403** aqui tambem.\n\n## O que um item faz\n\nCada item e um par **equipamento x servico**. Sao eles que dao valor a OS:\n\n- adicionar item **recalcula** o `valorTotal` da OS (soma do `valor` dos servicos);\n- adicionar item **incrementa** o `contadorUso` do servico; remover, decrementa;\n- a listagem **nao e paginada** - a composicao de uma OS e pequena e sempre lida por inteiro.\n\n## Regras\n\n| Situacao | Resposta |\n|---|---|\n| mesmo par equipamento+servico ja lancado na OS | **409** (UNIQUE `uq_item_os_os_equip_servico`) |\n| equipamento de **outro** cliente | **422** |\n| servico **inativo** no catalogo | **422** |\n| OS fora de `EM_ANDAMENTO` | **422** |\n| excluir OS que ainda tem itens | **422** |\n\nO `PUT` altera **so a observacao**: equipamento e servico formam a chave unica do\nitem, entao troca-los e remover e adicionar outro."
     }
   ],
   "variable": [
@@ -3963,6 +6998,81 @@
     {
       "key": "marcaEquipId",
       "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "clienteOsId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "marcaOsId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "equipamentoOsId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "equipamentoOsId2",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "servicoOsId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "servicoOsId2",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "servicoInativoOsId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ordemServicoId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "osDoClienteId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "osDescartavelId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "osItensId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "osConcluidaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "itemOsId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "itemOsId2",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "osClienteItensId",
+      "value": "",
       "type": "string"
     }
   ]
