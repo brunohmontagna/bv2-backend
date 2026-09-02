@@ -196,10 +196,13 @@ EM_ANDAMENTO ──concluir──> CONCLUIDA ──entregar──> ENTREGUE  (te
 ```
 
 - Nasce sempre `EM_ANDAMENTO`, com `dataEntrada` = hoje (ou a data informada, que não pode
-  ser futura). Pode **abrir vazia** (só `clienteId` + `observacao`) — que espelha o fluxo da
-  oficina: registra-se a entrada e os itens vão sendo lançados conforme o diagnóstico. A
-  criação **também aceita uma lista opcional de `itens`** (equipamento + serviço), cada um
-  validado como no `POST` de item; nesse caso a OS já nasce com o `valorTotal` somado.
+  ser futura).
+- **A OS não abre vazia: `itens` é obrigatório e precisa ter ao menos um elemento**
+  (`@NotEmpty`; lista ausente, `null` ou `[]` responde 400). Uma ordem sem nenhum serviço
+  lançado não representa trabalho nenhum e distorceria qualquer leitura de faturamento.
+  Cada item da lista passa pelas mesmas validações do `POST` de item, e a OS já nasce com o
+  `valorTotal` somado. Itens adicionais continuam podendo ser lançados depois, conforme o
+  diagnóstico avança.
 - **Não pode ir direto de `EM_ANDAMENTO` para `ENTREGUE`**: precisa passar por `CONCLUIDA`.
 - `ENTREGUE` e `CANCELADA` são terminais — não há reabertura.
 - Repetir o status atual é **no-op idempotente**, não erro.
@@ -211,13 +214,23 @@ EM_ANDAMENTO ──concluir──> CONCLUIDA ──entregar──> ENTREGUE  (te
   editar a observação e para adicionar, editar ou remover itens.
 - Cliente, status e datas **não** são editáveis pelo `PUT` — só a observação.
 - Não se abre OS para cliente inativo.
-- Só pode ser excluída se não tiver itens.
+- Só pode ser excluída se não tiver itens — como toda OS nasce com pelo menos um, excluir
+  exige antes esvaziá-la item a item (só possível enquanto `EM_ANDAMENTO`). Na prática o
+  caminho normal para desfazer uma OS é **cancelar**, não excluir.
 
 ### Itens da OS
 
 - Um item é o par **equipamento + serviço** dentro de uma OS. O trio
   `(os, equipamento, servico)` é único: o mesmo serviço não é lançado duas vezes para o
   mesmo equipamento na mesma OS.
+- **Os dois vínculos são obrigatórios**: não existe item sem equipamento e sem serviço.
+  `equipamentoId` e `servicoId` são `@NotNull` no request e `NOT NULL` na tabela — não há
+  item "solto", de mão de obra avulsa ou de peça sem serviço associado.
+- O **serviço sempre tem preço**: `servicos.valor` é `NOT NULL` (`CHECK valor >= 0`) e
+  obrigatório no request. É daí que sai o dinheiro do item — **o item não tem valor próprio
+  nem quantidade**, ele vale o `valor` do serviço no momento da leitura. Consequência a ter
+  em mente: alterar o preço de um serviço no catálogo muda o total das OSs automáticas que
+  já o usam (as manuais ficam congeladas).
 - O equipamento precisa **pertencer ao cliente da OS**.
 - O serviço precisa estar **ativo** no catálogo.
 - Equipamento e serviço são **imutáveis** no item (formam sua chave) — trocar um deles é
@@ -241,7 +254,7 @@ O `valorTotal` tem dois modos, controlados pela flag `valorTotalManual` (coluna
 Como se define:
 
 - Na **criação**, enviando `valorTotal` no corpo → nasce manual. Se omitido, nasce
-  automático (soma dos itens, ou 0 se vazia).
+  automático — a soma dos serviços dos `itens`, que nunca é vazia (a OS exige ao menos um).
 - Depois, por **`PATCH /ordens-servico/{id}/valor-total`**: um valor **congela** (vira
   manual); `valorTotal` **null** (ou corpo `{}`) **reseta** para automático e recalcula na
   hora. Só enquanto `EM_ANDAMENTO`.
@@ -257,6 +270,14 @@ Como se define:
   dono é **imutável**: transferir um equipamento com histórico de OS não é edição de
   cadastro (só nome e marca mudam no `PUT`). Não se cadastra equipamento para cliente inativo
   (422).
+- **Um equipamento é uma unidade física, não um modelo de catálogo.** O vínculo é com **um
+  único cliente** (`id_cliente`, `NOT NULL`, `ManyToOne`) e não há como compartilhá-lo: dois
+  clientes com "furadeira Makita" são **duas linhas** em `equipamentos`, duas unidades reais,
+  cada uma com seu histórico de OS. Por isso **não existe unicidade** em `equipamentos` —
+  nem por nome, nem por `(nome, marca)`, nem dentro do mesmo cliente (a M2 pode ter duas
+  furadeiras iguais do mesmo dono). Quem dá identidade ao equipamento é o `id`, não o nome.
+  Esse é também o motivo de o dono ser imutável: transferir a linha reescreveria o histórico
+  da unidade errada.
 - **Serviço**: `ativo` e `contadorUso` não vêm do request — o primeiro muda pelos PATCH,
   o segundo é mantido pelas ordens de serviço. O par **(nome, valor) é único** no catálogo
   (case-insensitive): pode haver "Troca de tela" por 450 e outra por 320, mas não duas por
