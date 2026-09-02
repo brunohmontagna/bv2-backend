@@ -47,7 +47,11 @@ public class Usuario {
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "role", nullable = false, columnDefinition = "role_usuario")
-    private RoleUsuario role = RoleUsuario.CLIENTE;
+    private RoleUsuario role = RoleUsuario.ADMIN;
+
+    @Builder.Default
+    @Column(name = "ativo", nullable = false)
+    private Boolean ativo = true;
 
     @CreationTimestamp
     @Column(name = "criado_em", nullable = false, updatable = false)

@@ -20,7 +20,7 @@ public class AutenticacaoAtual {
         return usuario;
     }
 
-    public boolean isAdmin() {
-        return usuario().isAdmin();
+    public boolean isMaster() {
+        return usuario().isMaster();
     }
 }

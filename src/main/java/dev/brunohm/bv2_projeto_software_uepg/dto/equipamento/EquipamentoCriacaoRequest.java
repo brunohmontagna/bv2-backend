@@ -7,8 +7,8 @@ import jakarta.validation.constraints.Size;
 
 public record EquipamentoCriacaoRequest(
 
-        @Schema(description = "Dono do equipamento. Se omitido, assume o cliente do usuario autenticado. "
-                + "Obrigatorio para o ADMIN, que nao possui cadastro de cliente.")
+        @Schema(description = "Cliente da M2 dono do equipamento. Precisa estar ativo.")
+        @NotNull(message = "O cliente e obrigatorio")
         Long clienteId,
 
         @NotNull(message = "A marca e obrigatoria")

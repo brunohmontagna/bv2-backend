@@ -1,11 +1,12 @@
 package dev.brunohm.bv2_projeto_software_uepg.dto.cliente;
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+/**
+ * Cadastro do cliente da M2. Nao cria usuario nem senha: cliente nao faz login.
+ */
 public record ClienteCriacaoRequest(
 
         @NotBlank(message = "O nome e obrigatorio")
@@ -15,9 +16,5 @@ public record ClienteCriacaoRequest(
         @NotBlank(message = "O telefone e obrigatorio")
         @Size(max = 13, message = "O telefone deve ter no maximo 13 caracteres")
         @Pattern(regexp = "\\d{10,13}", message = "O telefone deve conter apenas digitos (10 a 13)")
-        String telefone,
-
-        @NotNull(message = "Os dados de usuario sao obrigatorios")
-        @Valid
-        UsuarioCriacaoRequest usuario) {
+        String telefone) {
 }

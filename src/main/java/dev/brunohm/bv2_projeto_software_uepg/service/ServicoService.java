@@ -13,6 +13,7 @@ import dev.brunohm.bv2_projeto_software_uepg.domain.entity.Servico;
 import dev.brunohm.bv2_projeto_software_uepg.dto.PaginaResponse;
 import dev.brunohm.bv2_projeto_software_uepg.dto.servico.ServicoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.servico.ServicoResponse;
+import dev.brunohm.bv2_projeto_software_uepg.exception.RecursoDuplicadoException;
 import dev.brunohm.bv2_projeto_software_uepg.exception.RecursoNaoEncontradoException;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ServicoRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -28,6 +29,12 @@ public class ServicoService {
     /** Nasce ativo e com contador zerado (defaults da entidade). */
     @Transactional
     public ServicoResponse criar(ServicoRequest request) {
+        if (servicoRepository.existsByNomeIgnoreCaseAndValor(request.nome(), request.valor())) {
+            throw new RecursoDuplicadoException(
+                    "Ja existe um servico '" + request.nome() + "' com o valor " + request.valor()
+                            + ". Diferencie o nome ou o valor.");
+        }
+
         Servico servico = servicoRepository.save(Servico.builder()
                 .nome(request.nome())
                 .descricao(request.descricao())
@@ -50,6 +57,12 @@ public class ServicoService {
     @Transactional
     public ServicoResponse atualizar(Long id, ServicoRequest request) {
         Servico servico = buscarEntidade(id);
+
+        if (servicoRepository.existsByNomeIgnoreCaseAndValorAndIdNot(request.nome(), request.valor(), id)) {
+            throw new RecursoDuplicadoException(
+                    "Ja existe outro servico '" + request.nome() + "' com o valor " + request.valor()
+                            + ". Diferencie o nome ou o valor.");
+        }
 
         servico.setNome(request.nome());
         servico.setDescricao(request.descricao());

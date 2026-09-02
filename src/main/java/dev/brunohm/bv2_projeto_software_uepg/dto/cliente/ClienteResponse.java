@@ -9,8 +9,7 @@ public record ClienteResponse(
         String nome,
         String telefone,
         Boolean ativo,
-        LocalDateTime criadoEm,
-        UsuarioResponse usuario) {
+        LocalDateTime criadoEm) {
 
     public static ClienteResponse fromEntity(Cliente cliente) {
         return new ClienteResponse(
@@ -18,7 +17,6 @@ public record ClienteResponse(
                 cliente.getNome(),
                 cliente.getTelefone(),
                 cliente.getAtivo(),
-                cliente.getCriadoEm(),
-                UsuarioResponse.fromEntity(cliente.getUsuario()));
+                cliente.getCriadoEm());
     }
 }

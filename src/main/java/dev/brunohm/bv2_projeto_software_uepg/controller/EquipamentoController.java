@@ -34,17 +34,16 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/equipamentos")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Equipamentos", description = "Equipamentos dos clientes. O ADMIN acessa todos; o cliente, apenas os seus")
+@Tag(name = "Equipamentos", description = "Equipamentos dos clientes da M2. Qualquer usuario autenticado acessa todos")
 public class EquipamentoController {
 
     private final EquipamentoService equipamentoService;
 
     @PostMapping
-    @Operation(summary = "Cadastra um equipamento (o cliente pode omitir o clienteId para cadastrar no proprio nome)")
+    @Operation(summary = "Cadastra um equipamento para um cliente da M2")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Equipamento criado"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre este cliente"),
             @ApiResponse(responseCode = "404", description = "Cliente ou marca nao encontrada"),
             @ApiResponse(responseCode = "422", description = "Cliente inativo")
     })
@@ -68,10 +67,9 @@ public class EquipamentoController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Busca um equipamento pelo id (ADMIN, ou o cliente dono)")
+    @Operation(summary = "Busca um equipamento pelo id")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Equipamento encontrado"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre este equipamento"),
             @ApiResponse(responseCode = "404", description = "Equipamento nao encontrado")
     })
     public ResponseEntity<EquipamentoResponse> buscarPorId(@PathVariable Long id) {
@@ -82,7 +80,6 @@ public class EquipamentoController {
     @Operation(summary = "Atualiza nome e marca do equipamento (o cliente dono e imutavel)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Equipamento atualizado"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre este equipamento"),
             @ApiResponse(responseCode = "404", description = "Equipamento ou marca nao encontrada")
     })
     public ResponseEntity<EquipamentoResponse> atualizar(
@@ -95,7 +92,6 @@ public class EquipamentoController {
     @Operation(summary = "Remove definitivamente o equipamento")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Equipamento removido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre este equipamento"),
             @ApiResponse(responseCode = "404", description = "Equipamento nao encontrado"),
             @ApiResponse(responseCode = "409", description = "Equipamento usado em ordens de servico")
     })
