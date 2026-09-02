@@ -6,7 +6,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,19 +33,17 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/marcas")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Marcas", description = "Catalogo de marcas. Leitura para qualquer autenticado; escrita apenas ADMIN")
+@Tag(name = "Marcas", description = "Catalogo de marcas dos equipamentos. Leitura e escrita para qualquer usuario autenticado")
 public class MarcaController {
 
     private final MarcaService marcaService;
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Cadastra uma marca")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Marca criada"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),
-            @ApiResponse(responseCode = "409", description = "Nome ja cadastrado"),
-            @ApiResponse(responseCode = "403", description = "Apenas ADMIN pode alterar o catalogo")
+            @ApiResponse(responseCode = "409", description = "Nome ja cadastrado")
     })
     public ResponseEntity<MarcaResponse> criar(@Valid @RequestBody MarcaRequest request) {
         MarcaResponse criada = marcaService.criar(request);
@@ -76,13 +73,11 @@ public class MarcaController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Atualiza o nome da marca")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Marca atualizada"),
             @ApiResponse(responseCode = "404", description = "Marca nao encontrada"),
-            @ApiResponse(responseCode = "409", description = "Nome ja cadastrado em outra marca"),
-            @ApiResponse(responseCode = "403", description = "Apenas ADMIN pode alterar o catalogo")
+            @ApiResponse(responseCode = "409", description = "Nome ja cadastrado em outra marca")
     })
     public ResponseEntity<MarcaResponse> atualizar(
             @PathVariable Long id,
@@ -91,13 +86,11 @@ public class MarcaController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Remove a marca")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Marca removida"),
             @ApiResponse(responseCode = "404", description = "Marca nao encontrada"),
-            @ApiResponse(responseCode = "409", description = "Marca possui equipamentos vinculados"),
-            @ApiResponse(responseCode = "403", description = "Apenas ADMIN pode alterar o catalogo")
+            @ApiResponse(responseCode = "409", description = "Marca possui equipamentos vinculados")
     })
     public ResponseEntity<Void> excluir(@PathVariable Long id) {
         marcaService.excluir(id);

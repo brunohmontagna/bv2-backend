@@ -47,6 +47,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private void autenticar(String email, HttpServletRequest request) {
         try {
             UserDetails usuario = usuarioDetailsService.loadUserByUsername(email);
+
+            // Desativar um usuario precisa valer na hora. Sem isto, o token dele
+            // continuaria aceito ate expirar (jwt.expiracao-minutos, 120 por padrao).
+            if (!usuario.isEnabled()) {
+                logger.debug("Token de usuario desativado: " + email);
+                return;
+            }
+
             var autenticacao = new UsernamePasswordAuthenticationToken(
                     usuario, null, usuario.getAuthorities());
             autenticacao.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));

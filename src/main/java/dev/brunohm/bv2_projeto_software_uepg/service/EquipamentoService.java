@@ -6,7 +6,6 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,10 +21,13 @@ import dev.brunohm.bv2_projeto_software_uepg.exception.RegraDeNegocioException;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ClienteRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.EquipamentoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.MarcaRepository;
-import dev.brunohm.bv2_projeto_software_uepg.security.AutenticacaoAtual;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Equipamento pertence a um cliente da M2, que nao e usuario do sistema. Nao ha
+ * checagem de posse: MASTER e ADMIN operam todos os equipamentos.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -34,16 +36,10 @@ public class EquipamentoService {
     private final EquipamentoRepository equipamentoRepository;
     private final ClienteRepository clienteRepository;
     private final MarcaRepository marcaRepository;
-    private final AutenticacaoAtual autenticacaoAtual;
 
-    /**
-     * O ADMIN informa o clienteId; o CLIENTE pode omiti-lo e o dono e resolvido
-     * a partir do usuario autenticado.
-     */
     @Transactional
     public EquipamentoResponse criar(EquipamentoCriacaoRequest request) {
-        Cliente cliente = resolverCliente(request.clienteId());
-        garantirAcessoAoCliente(cliente);
+        Cliente cliente = buscarCliente(request.clienteId());
 
         if (Boolean.FALSE.equals(cliente.getAtivo())) {
             throw new RegraDeNegocioException(
@@ -59,30 +55,19 @@ public class EquipamentoService {
         return EquipamentoResponse.fromEntity(equipamento);
     }
 
-    /**
-     * Quem nao e ADMIN tem o filtro de cliente sobrescrito pelo proprio id: um
-     * CLIENTE nunca lista equipamento alheio, mesmo passando ?clienteId de outro.
-     */
     public PaginaResponse<EquipamentoResponse> listar(Long clienteId, Long marcaId, String nome, Pageable pageable) {
-        Long clienteFiltrado = autenticacaoAtual.isAdmin()
-                ? clienteId
-                : clienteAutenticado().getId();
-
         Page<Equipamento> pagina = equipamentoRepository
-                .findAll(filtrar(clienteFiltrado, marcaId, nome), pageable);
+                .findAll(filtrar(clienteId, marcaId, nome), pageable);
         return PaginaResponse.de(pagina, EquipamentoResponse::fromEntity);
     }
 
     public EquipamentoResponse buscarPorId(Long id) {
-        Equipamento equipamento = buscarEntidade(id);
-        garantirAcesso(equipamento);
-        return EquipamentoResponse.fromEntity(equipamento);
+        return EquipamentoResponse.fromEntity(buscarEntidade(id));
     }
 
     @Transactional
     public EquipamentoResponse atualizar(Long id, EquipamentoAtualizacaoRequest request) {
         Equipamento equipamento = buscarEntidade(id);
-        garantirAcesso(equipamento);
 
         equipamento.setMarca(buscarMarca(request.marcaId()));
         equipamento.setNome(request.nome());
@@ -96,10 +81,7 @@ public class EquipamentoService {
      */
     @Transactional
     public void excluir(Long id) {
-        Equipamento equipamento = buscarEntidade(id);
-        garantirAcesso(equipamento);
-
-        equipamentoRepository.delete(equipamento);
+        equipamentoRepository.delete(buscarEntidade(id));
         equipamentoRepository.flush();
     }
 
@@ -113,40 +95,9 @@ public class EquipamentoService {
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Marca", id));
     }
 
-    private Cliente resolverCliente(Long clienteId) {
-        if (clienteId == null) {
-            return clienteAutenticado();
-        }
-        return clienteRepository.findById(clienteId)
-                .orElseThrow(() -> RecursoNaoEncontradoException.de("Cliente", clienteId));
-    }
-
-    private Cliente clienteAutenticado() {
-        return clienteRepository.findByUsuarioId(autenticacaoAtual.usuario().getId())
-                .orElseThrow(() -> new RegraDeNegocioException(
-                        "O usuario autenticado nao possui cadastro de cliente. Informe o clienteId."));
-    }
-
-    /**
-     * Comparacao pelo id do cliente, nao pelo do usuario: evita disparar o lazy
-     * load de cliente.usuario so para conferir a posse.
-     */
-    private void garantirAcesso(Equipamento equipamento) {
-        if (autenticacaoAtual.isAdmin()) {
-            return;
-        }
-        if (!equipamento.getCliente().getId().equals(clienteAutenticado().getId())) {
-            throw new AccessDeniedException("Voce so pode acessar os proprios equipamentos.");
-        }
-    }
-
-    private void garantirAcessoAoCliente(Cliente cliente) {
-        if (autenticacaoAtual.isAdmin()) {
-            return;
-        }
-        if (!cliente.getId().equals(clienteAutenticado().getId())) {
-            throw new AccessDeniedException("Voce so pode cadastrar equipamentos no proprio cadastro.");
-        }
+    private Cliente buscarCliente(Long id) {
+        return clienteRepository.findById(id)
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Cliente", id));
     }
 
     private Specification<Equipamento> filtrar(Long clienteId, Long marcaId, String nome) {

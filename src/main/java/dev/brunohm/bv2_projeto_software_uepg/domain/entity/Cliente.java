@@ -6,12 +6,9 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,6 +16,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Cliente da M2: quem leva o equipamento para consertar. E um cadastro, como
+ * marca ou servico — <b>nao faz login e nao tem Usuario associado</b>. Quem opera
+ * o sistema e a propria M2, com papel ADMIN.
+ */
 @Entity
 @Table(name = "clientes")
 @Getter
@@ -31,10 +33,6 @@ public class Cliente {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "id_usuario", nullable = false, unique = true)
-    private Usuario usuario;
 
     @Column(name = "nome", nullable = false, length = 50)
     private String nome;

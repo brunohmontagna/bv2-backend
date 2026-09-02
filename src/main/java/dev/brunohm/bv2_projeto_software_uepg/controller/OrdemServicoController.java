@@ -29,6 +29,7 @@ import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.ItemOsResponse;
 import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.OrdemServicoAtualizacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.OrdemServicoCriacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.OrdemServicoResponse;
+import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.OrdemServicoValorTotalRequest;
 import dev.brunohm.bv2_projeto_software_uepg.service.OrdemServicoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -40,13 +41,13 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Os itens moram neste controller, e nao em um proprio: nao existem fora de uma
- * OS e compartilham com ela a mesma checagem de posse.
+ * OS e so fazem sentido enderecados por ela.
  */
 @RestController
 @RequestMapping("/ordens-servico")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Ordens de Servico", description = "Ordens de servico e seus itens. O ADMIN acessa todas; o cliente, apenas as suas")
+@Tag(name = "Ordens de Servico", description = "Ordens de servico dos clientes da M2 e seus itens. Qualquer usuario autenticado acessa todas")
 public class OrdemServicoController {
 
     private final OrdemServicoService ordemServicoService;
@@ -56,14 +57,16 @@ public class OrdemServicoController {
     // ------------------------------------------------------------------
 
     @PostMapping
-    @Operation(summary = "Abre uma ordem de servico (o cliente pode omitir o clienteId para abrir no proprio nome)")
+    @Operation(summary = "Abre uma ordem de servico para um cliente da M2. Pode nascer vazia, "
+            + "ja com uma lista de itens, e/ou com o valorTotal fixado a mao")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Ordem de servico criada, com valorTotal zerado"),
+            @ApiResponse(responseCode = "201", description = "Ordem de servico criada. valorTotal = soma dos itens, "
+                    + "ou o valor enviado a mao (que passa a valer valorTotalManual=true)"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre este cliente"),
-            @ApiResponse(responseCode = "404", description = "Cliente nao encontrado"),
-            @ApiResponse(responseCode = "422", description = "Cliente inativo, ou usuario sem cadastro de cliente")
+            @ApiResponse(responseCode = "404", description = "Cliente, equipamento ou servico (de um item) nao encontrado"),
+            @ApiResponse(responseCode = "409", description = "Item repetido (mesmo equipamento e servico) na lista"),
+            @ApiResponse(responseCode = "422", description = "Cliente inativo, equipamento de outro cliente, ou servico inativo em um item")
     })
     public ResponseEntity<OrdemServicoResponse> criar(@Valid @RequestBody OrdemServicoCriacaoRequest request) {
         OrdemServicoResponse criada = ordemServicoService.criar(request);
@@ -77,7 +80,7 @@ public class OrdemServicoController {
     @GetMapping
     @Operation(summary = "Lista ordens de servico de forma paginada, com filtro por cliente, status e periodo de entrada")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Pagina de ordens de servico. O cliente so recebe as suas, mesmo informando outro clienteId"),
+            @ApiResponse(responseCode = "200", description = "Pagina de ordens de servico"),
             @ApiResponse(responseCode = "400", description = "Parametro invalido (status fora do enum ou data mal formatada)"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido")
     })
@@ -91,11 +94,10 @@ public class OrdemServicoController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Busca uma ordem de servico pelo id (ADMIN, ou o cliente dono)")
+    @Operation(summary = "Busca uma ordem de servico pelo id")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ordem de servico encontrada"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre esta ordem de servico"),
             @ApiResponse(responseCode = "404", description = "Ordem de servico nao encontrada")
     })
     public ResponseEntity<OrdemServicoResponse> buscarPorId(@PathVariable Long id) {
@@ -108,7 +110,6 @@ public class OrdemServicoController {
             @ApiResponse(responseCode = "200", description = "Ordem de servico atualizada"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre esta ordem de servico"),
             @ApiResponse(responseCode = "404", description = "Ordem de servico nao encontrada"),
             @ApiResponse(responseCode = "422", description = "Ordem de servico nao esta EM_ANDAMENTO")
     })
@@ -123,7 +124,6 @@ public class OrdemServicoController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ordem de servico concluida"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre esta ordem de servico"),
             @ApiResponse(responseCode = "404", description = "Ordem de servico nao encontrada"),
             @ApiResponse(responseCode = "422", description = "Ordem de servico ja entregue ou cancelada")
     })
@@ -136,7 +136,6 @@ public class OrdemServicoController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ordem de servico entregue"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre esta ordem de servico"),
             @ApiResponse(responseCode = "404", description = "Ordem de servico nao encontrada"),
             @ApiResponse(responseCode = "422", description = "Ordem de servico ainda EM_ANDAMENTO, ou cancelada")
     })
@@ -149,7 +148,6 @@ public class OrdemServicoController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Ordem de servico cancelada"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre esta ordem de servico"),
             @ApiResponse(responseCode = "404", description = "Ordem de servico nao encontrada"),
             @ApiResponse(responseCode = "422", description = "Ordem de servico ja entregue")
     })
@@ -157,12 +155,27 @@ public class OrdemServicoController {
         return ResponseEntity.ok(ordemServicoService.cancelar(id));
     }
 
+    @PatchMapping("/{id}/valor-total")
+    @Operation(summary = "Fixa o valorTotal a mao (congela, valorTotalManual=true) ou reseta para o "
+            + "automatico enviando valorTotal null (volta a somar os itens)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Valor total atualizado"),
+            @ApiResponse(responseCode = "400", description = "Valor invalido (negativo ou fora da escala)"),
+            @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
+            @ApiResponse(responseCode = "404", description = "Ordem de servico nao encontrada"),
+            @ApiResponse(responseCode = "422", description = "Ordem de servico nao esta EM_ANDAMENTO")
+    })
+    public ResponseEntity<OrdemServicoResponse> definirValorTotal(
+            @PathVariable Long id,
+            @Valid @RequestBody OrdemServicoValorTotalRequest request) {
+        return ResponseEntity.ok(ordemServicoService.definirValorTotal(id, request));
+    }
+
     @DeleteMapping("/{id}")
     @Operation(summary = "Remove definitivamente a ordem de servico (precisa estar sem itens)")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Ordem de servico removida"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre esta ordem de servico"),
             @ApiResponse(responseCode = "404", description = "Ordem de servico nao encontrada"),
             @ApiResponse(responseCode = "409", description = "Vinculos impedem a exclusao (notificacoes)"),
             @ApiResponse(responseCode = "422", description = "Ordem de servico ainda possui itens")
@@ -181,7 +194,6 @@ public class OrdemServicoController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Itens da ordem de servico"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre esta ordem de servico"),
             @ApiResponse(responseCode = "404", description = "Ordem de servico nao encontrada")
     })
     public ResponseEntity<List<ItemOsResponse>> listarItens(@PathVariable Long id) {
@@ -194,7 +206,6 @@ public class OrdemServicoController {
             @ApiResponse(responseCode = "201", description = "Item adicionado"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre esta ordem de servico"),
             @ApiResponse(responseCode = "404", description = "Ordem de servico, equipamento ou servico nao encontrado"),
             @ApiResponse(responseCode = "409", description = "Este servico ja foi lancado para este equipamento na OS"),
             @ApiResponse(responseCode = "422", description = "OS nao esta EM_ANDAMENTO, equipamento de outro cliente, ou servico inativo")
@@ -216,7 +227,6 @@ public class OrdemServicoController {
             @ApiResponse(responseCode = "200", description = "Item atualizado"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre esta ordem de servico"),
             @ApiResponse(responseCode = "404", description = "Ordem de servico ou item nao encontrado"),
             @ApiResponse(responseCode = "422", description = "Ordem de servico nao esta EM_ANDAMENTO")
     })
@@ -232,7 +242,6 @@ public class OrdemServicoController {
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Item removido"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "403", description = "Sem permissao sobre esta ordem de servico"),
             @ApiResponse(responseCode = "404", description = "Ordem de servico ou item nao encontrado"),
             @ApiResponse(responseCode = "422", description = "Ordem de servico nao esta EM_ANDAMENTO")
     })

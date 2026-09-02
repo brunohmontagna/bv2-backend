@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** Somente dados cadastrais. E-mail e senha mudam em endpoint proprio de usuario. */
+/** A situacao (ativo) nao entra aqui: muda pelos PATCH /ativar e /desativar. */
 public record ClienteAtualizacaoRequest(
 
         @NotBlank(message = "O nome e obrigatorio")

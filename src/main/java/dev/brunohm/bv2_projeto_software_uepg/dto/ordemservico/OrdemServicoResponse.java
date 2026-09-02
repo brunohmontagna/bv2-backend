@@ -16,6 +16,7 @@ public record OrdemServicoResponse(
         LocalDate dataConcluida,
         LocalDate dataEntregue,
         BigDecimal valorTotal,
+        Boolean valorTotalManual,
         LocalDateTime criadoEm,
         ClienteResumoResponse cliente) {
 
@@ -28,6 +29,7 @@ public record OrdemServicoResponse(
                 ordemServico.getDataConcluida(),
                 ordemServico.getDataEntregue(),
                 ordemServico.getValorTotal(),
+                ordemServico.getValorTotalManual(),
                 ordemServico.getCriadoEm(),
                 ClienteResumoResponse.fromEntity(ordemServico.getCliente()));
     }

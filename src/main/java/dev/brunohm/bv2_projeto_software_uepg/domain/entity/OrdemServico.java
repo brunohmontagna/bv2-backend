@@ -64,6 +64,14 @@ public class OrdemServico {
     @Column(name = "valor_total", nullable = false, precision = 9, scale = 2)
     private BigDecimal valorTotal;
 
+    /**
+     * TRUE quando o valorTotal foi fixado a mao: nesse caso ele para de ser
+     * recalculado a partir dos itens ate um reset devolver a coluna para FALSE.
+     */
+    @Builder.Default
+    @Column(name = "valor_total_manual", nullable = false)
+    private Boolean valorTotalManual = false;
+
     @CreationTimestamp
     @Column(name = "criado_em", nullable = false, updatable = false)
     private LocalDateTime criadoEm;

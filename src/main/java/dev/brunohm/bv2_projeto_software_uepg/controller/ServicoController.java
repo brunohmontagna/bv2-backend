@@ -6,7 +6,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -35,18 +34,17 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/servicos")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Servicos", description = "Catalogo de servicos. Leitura para qualquer autenticado; escrita apenas ADMIN")
+@Tag(name = "Servicos", description = "Catalogo de servicos prestados pela M2. Leitura e escrita para qualquer usuario autenticado")
 public class ServicoController {
 
     private final ServicoService servicoService;
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Cadastra um servico")
+    @Operation(summary = "Cadastra um servico (nome + valor precisam ser unicos no catalogo)")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Servico criado"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),
-            @ApiResponse(responseCode = "403", description = "Apenas ADMIN pode alterar o catalogo")
+            @ApiResponse(responseCode = "409", description = "Ja existe um servico com esse nome e valor")
     })
     public ResponseEntity<ServicoResponse> criar(@Valid @RequestBody ServicoRequest request) {
         ServicoResponse criado = servicoService.criar(request);
@@ -77,13 +75,12 @@ public class ServicoController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Atualiza nome, descricao e valor do servico")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Servico atualizado"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),
             @ApiResponse(responseCode = "404", description = "Servico nao encontrado"),
-            @ApiResponse(responseCode = "403", description = "Apenas ADMIN pode alterar o catalogo")
+            @ApiResponse(responseCode = "409", description = "Ja existe outro servico com esse nome e valor")
     })
     public ResponseEntity<ServicoResponse> atualizar(
             @PathVariable Long id,
@@ -92,27 +89,23 @@ public class ServicoController {
     }
 
     @PatchMapping("/{id}/ativar")
-    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Reativa o servico (idempotente)")
     public ResponseEntity<ServicoResponse> ativar(@PathVariable Long id) {
         return ResponseEntity.ok(servicoService.alterarSituacao(id, true));
     }
 
     @PatchMapping("/{id}/desativar")
-    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Inativa o servico sem apagar o historico (idempotente)")
     public ResponseEntity<ServicoResponse> desativar(@PathVariable Long id) {
         return ResponseEntity.ok(servicoService.alterarSituacao(id, false));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Remove definitivamente o servico")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Servico removido"),
             @ApiResponse(responseCode = "404", description = "Servico nao encontrado"),
-            @ApiResponse(responseCode = "409", description = "Servico usado em ordens de servico"),
-            @ApiResponse(responseCode = "403", description = "Apenas ADMIN pode alterar o catalogo")
+            @ApiResponse(responseCode = "409", description = "Servico usado em ordens de servico")
     })
     public ResponseEntity<Void> excluir(@PathVariable Long id) {
         servicoService.excluir(id);

@@ -8,7 +8,6 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +24,7 @@ import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.ItemOsResponse;
 import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.OrdemServicoAtualizacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.OrdemServicoCriacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.OrdemServicoResponse;
+import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.OrdemServicoValorTotalRequest;
 import dev.brunohm.bv2_projeto_software_uepg.exception.RecursoDuplicadoException;
 import dev.brunohm.bv2_projeto_software_uepg.exception.RecursoNaoEncontradoException;
 import dev.brunohm.bv2_projeto_software_uepg.exception.RegraDeNegocioException;
@@ -33,10 +33,13 @@ import dev.brunohm.bv2_projeto_software_uepg.repository.EquipamentoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ItemOsRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.OrdemServicoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ServicoRepository;
-import dev.brunohm.bv2_projeto_software_uepg.security.AutenticacaoAtual;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * A OS pertence a um cliente da M2, que nao e usuario do sistema. Nao ha checagem
+ * de posse: MASTER e ADMIN operam todas as ordens.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -47,21 +50,18 @@ public class OrdemServicoService {
     private final ClienteRepository clienteRepository;
     private final EquipamentoRepository equipamentoRepository;
     private final ServicoRepository servicoRepository;
-    private final AutenticacaoAtual autenticacaoAtual;
 
     // ------------------------------------------------------------------
     // Ordem de servico
     // ------------------------------------------------------------------
 
     /**
-     * O ADMIN informa o clienteId; o CLIENTE pode omiti-lo e o dono e resolvido
-     * a partir do usuario autenticado. A OS nasce sem itens, entao o valorTotal
-     * comeca zerado (a coluna e NOT NULL) e so muda via itens.
+     * A OS nasce sem itens, entao o valorTotal comeca zerado (a coluna e NOT NULL)
+     * e so muda via itens.
      */
     @Transactional
     public OrdemServicoResponse criar(OrdemServicoCriacaoRequest request) {
-        Cliente cliente = resolverCliente(request.clienteId());
-        garantirAcessoAoCliente(cliente);
+        Cliente cliente = buscarCliente(request.clienteId());
 
         if (Boolean.FALSE.equals(cliente.getAtivo())) {
             throw new RegraDeNegocioException(
@@ -74,37 +74,65 @@ public class OrdemServicoService {
                 .status(StatusOs.EM_ANDAMENTO)
                 .dataEntrada(request.dataEntrada() != null ? request.dataEntrada() : LocalDate.now())
                 .valorTotal(BigDecimal.ZERO)
+                .valorTotalManual(false)
                 .build());
+
+        // Itens ja informados na abertura (opcional). Cada um passa pelas mesmas
+        // validacoes do POST de item; a soma vira o valorTotal logo abaixo.
+        if (request.itens() != null) {
+            for (ItemOsCriacaoRequest item : request.itens()) {
+                criarItem(ordemServico, item);
+            }
+        }
+
+        // valorTotal enviado a mao congela o total; senao, soma dos itens (0 se vazia).
+        if (request.valorTotal() != null) {
+            ordemServico.setValorTotalManual(true);
+            ordemServico.setValorTotal(request.valorTotal());
+            ordemServicoRepository.save(ordemServico);
+        } else {
+            recalcularValorTotal(ordemServico);
+        }
 
         return OrdemServicoResponse.fromEntity(ordemServico);
     }
 
     /**
-     * Quem nao e ADMIN tem o filtro de cliente sobrescrito pelo proprio id: um
-     * CLIENTE nunca lista ordem de servico alheia, mesmo passando ?clienteId de
-     * outro.
+     * Fixa ou reseta o valorTotal a mao. Um valor congela o total (para de
+     * recalcular pelos itens); null volta ao automatico e recalcula na hora.
+     * So enquanto EM_ANDAMENTO, como toda mutacao da OS.
      */
+    @Transactional
+    public OrdemServicoResponse definirValorTotal(Long id, OrdemServicoValorTotalRequest request) {
+        OrdemServico ordemServico = buscarEntidade(id);
+        garantirEmAndamento(ordemServico, "alterar o valor total");
+
+        if (request.valorTotal() != null) {
+            ordemServico.setValorTotalManual(true);
+            ordemServico.setValorTotal(request.valorTotal());
+            ordemServicoRepository.save(ordemServico);
+        } else {
+            ordemServico.setValorTotalManual(false);
+            recalcularValorTotal(ordemServico);
+        }
+
+        return OrdemServicoResponse.fromEntity(ordemServico);
+    }
+
     public PaginaResponse<OrdemServicoResponse> listar(Long clienteId, StatusOs status,
             LocalDate dataInicio, LocalDate dataFim, Pageable pageable) {
-        Long clienteFiltrado = autenticacaoAtual.isAdmin()
-                ? clienteId
-                : clienteAutenticado().getId();
-
         Page<OrdemServico> pagina = ordemServicoRepository
-                .findAll(filtrar(clienteFiltrado, status, dataInicio, dataFim), pageable);
+                .findAll(filtrar(clienteId, status, dataInicio, dataFim), pageable);
         return PaginaResponse.de(pagina, OrdemServicoResponse::fromEntity);
     }
 
     public OrdemServicoResponse buscarPorId(Long id) {
-        OrdemServico ordemServico = buscarEntidade(id);
-        garantirAcesso(ordemServico);
-        return OrdemServicoResponse.fromEntity(ordemServico);
+        return OrdemServicoResponse.fromEntity(buscarEntidade(id));
     }
 
     @Transactional
     public OrdemServicoResponse atualizar(Long id, OrdemServicoAtualizacaoRequest request) {
         OrdemServico ordemServico = buscarEntidade(id);
-        garantirAcesso(ordemServico);
         garantirEmAndamento(ordemServico, "editar");
 
         ordemServico.setObservacao(request.observacao());
@@ -121,7 +149,6 @@ public class OrdemServicoService {
     @Transactional
     public void excluir(Long id) {
         OrdemServico ordemServico = buscarEntidade(id);
-        garantirAcesso(ordemServico);
 
         if (itemOsRepository.existsByOrdemServicoId(id)) {
             throw new RegraDeNegocioException(
@@ -160,7 +187,6 @@ public class OrdemServicoService {
      */
     private OrdemServicoResponse transicionar(Long id, StatusOs destino) {
         OrdemServico ordemServico = buscarEntidade(id);
-        garantirAcesso(ordemServico);
 
         StatusOs atual = ordemServico.getStatus();
         if (atual == destino) {
@@ -204,7 +230,6 @@ public class OrdemServicoService {
      */
     public List<ItemOsResponse> listarItens(Long ordemServicoId) {
         OrdemServico ordemServico = buscarEntidade(ordemServicoId);
-        garantirAcesso(ordemServico);
 
         return itemOsRepository.findByOrdemServicoIdOrderByIdAsc(ordemServico.getId())
                 .stream()
@@ -215,9 +240,21 @@ public class OrdemServicoService {
     @Transactional
     public ItemOsResponse adicionarItem(Long ordemServicoId, ItemOsCriacaoRequest request) {
         OrdemServico ordemServico = buscarEntidade(ordemServicoId);
-        garantirAcesso(ordemServico);
         garantirEmAndamento(ordemServico, "adicionar itens");
 
+        ItemOs item = criarItem(ordemServico, request);
+
+        recalcularValorTotal(ordemServico);
+
+        return ItemOsResponse.fromEntity(item);
+    }
+
+    /**
+     * Cria e persiste um item, com todas as validacoes de posse/estado do servico,
+     * e incrementa o contadorUso. Nao recalcula o valorTotal: quem chama decide
+     * quando (uma vez ao final, na abertura em lote ou no POST de item avulso).
+     */
+    private ItemOs criarItem(OrdemServico ordemServico, ItemOsCriacaoRequest request) {
         Equipamento equipamento = buscarEquipamento(request.equipamentoId());
         if (!equipamento.getCliente().getId().equals(ordemServico.getCliente().getId())) {
             throw new RegraDeNegocioException(
@@ -246,15 +283,12 @@ public class OrdemServicoService {
         servico.setContadorUso(servico.getContadorUso() + 1);
         servicoRepository.save(servico);
 
-        recalcularValorTotal(ordemServico);
-
-        return ItemOsResponse.fromEntity(item);
+        return item;
     }
 
     @Transactional
     public ItemOsResponse atualizarItem(Long ordemServicoId, Long itemId, ItemOsAtualizacaoRequest request) {
         OrdemServico ordemServico = buscarEntidade(ordemServicoId);
-        garantirAcesso(ordemServico);
         garantirEmAndamento(ordemServico, "editar itens");
 
         ItemOs item = buscarItem(ordemServico, itemId);
@@ -267,7 +301,6 @@ public class OrdemServicoService {
     @Transactional
     public void removerItem(Long ordemServicoId, Long itemId) {
         OrdemServico ordemServico = buscarEntidade(ordemServicoId);
-        garantirAcesso(ordemServico);
         garantirEmAndamento(ordemServico, "remover itens");
 
         ItemOs item = buscarItem(ordemServico, itemId);
@@ -284,11 +317,19 @@ public class OrdemServicoService {
     }
 
     /**
-     * Unico ponto que escreve valorTotal. OrdemServico nao mapeia @OneToMany de
-     * itens, entao a soma vem sempre do repositorio, ja com os servicos no
-     * EntityGraph.
+     * Recalcula o valorTotal como a soma dos servicos dos itens. OrdemServico nao
+     * mapeia @OneToMany de itens, entao a soma vem sempre do repositorio, ja com os
+     * servicos no EntityGraph.
+     *
+     * <p>
+     * No-op quando valorTotalManual e TRUE: o total foi fixado a mao e so um reset
+     * (definirValorTotal com null) volta a deixar os itens mandarem nele.
      */
     private void recalcularValorTotal(OrdemServico ordemServico) {
+        if (Boolean.TRUE.equals(ordemServico.getValorTotalManual())) {
+            return;
+        }
+
         BigDecimal total = itemOsRepository.findByOrdemServicoIdOrderByIdAsc(ordemServico.getId())
                 .stream()
                 .map(item -> item.getServico().getValor())
@@ -308,8 +349,8 @@ public class OrdemServicoService {
     }
 
     /**
-     * Item de outra OS responde 404, e nao 403: pela rota informada ele nao
-     * existe, e revelar a diferenca vazaria a existencia de itens alheios.
+     * Item de outra OS responde 404: pela rota informada ele de fato nao existe,
+     * e o id do item sozinho nao enderecca nada.
      */
     private ItemOs buscarItem(OrdemServico ordemServico, Long itemId) {
         ItemOs item = itemOsRepository.findById(itemId)
@@ -331,40 +372,9 @@ public class OrdemServicoService {
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Servico", id));
     }
 
-    private Cliente resolverCliente(Long clienteId) {
-        if (clienteId == null) {
-            return clienteAutenticado();
-        }
+    private Cliente buscarCliente(Long clienteId) {
         return clienteRepository.findById(clienteId)
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Cliente", clienteId));
-    }
-
-    private Cliente clienteAutenticado() {
-        return clienteRepository.findByUsuarioId(autenticacaoAtual.usuario().getId())
-                .orElseThrow(() -> new RegraDeNegocioException(
-                        "O usuario autenticado nao possui cadastro de cliente. Informe o clienteId."));
-    }
-
-    /**
-     * Comparacao pelo id do cliente, nao pelo do usuario: evita disparar o lazy
-     * load de cliente.usuario so para conferir a posse.
-     */
-    private void garantirAcesso(OrdemServico ordemServico) {
-        if (autenticacaoAtual.isAdmin()) {
-            return;
-        }
-        if (!ordemServico.getCliente().getId().equals(clienteAutenticado().getId())) {
-            throw new AccessDeniedException("Voce so pode acessar as proprias ordens de servico.");
-        }
-    }
-
-    private void garantirAcessoAoCliente(Cliente cliente) {
-        if (autenticacaoAtual.isAdmin()) {
-            return;
-        }
-        if (!cliente.getId().equals(clienteAutenticado().getId())) {
-            throw new AccessDeniedException("Voce so pode abrir ordens de servico no proprio cadastro.");
-        }
     }
 
     /** A OS so e mutavel enquanto EM_ANDAMENTO; depois disso vira historico. */

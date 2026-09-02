@@ -1,13 +1,18 @@
-package dev.brunohm.bv2_projeto_software_uepg.dto.cliente;
+package dev.brunohm.bv2_projeto_software_uepg.dto.usuario;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-/** Dados de acesso criados junto com o cliente (Cliente exige um Usuario). */
+/**
+ * O papel nao entra aqui: todo usuario criado pela API nasce ADMIN. MASTER e a
+ * equipe desenvolvedora, semeada na migration, e nao e atribuivel por requisicao.
+ */
+@Schema(description = "Dados de acesso de um novo usuario. Criado sempre com papel ADMIN.")
 public record UsuarioCriacaoRequest(
 
-        @NotBlank(message = "O nome do usuario e obrigatorio")
+        @NotBlank(message = "O nome e obrigatorio")
         @Size(max = 50, message = "O nome deve ter no maximo 50 caracteres")
         String nome,
 
