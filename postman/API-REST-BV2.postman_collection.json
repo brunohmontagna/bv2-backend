@@ -2096,34 +2096,26 @@
 			"name": "7. OS (CRUD + Transição Status)",
 			"item": [
 				{
-					"name": "Criar OS (201)",
+					"name": "Preparar fixtures da pasta (setup)",
 					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"method": "GET",
+						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/ordens-servico",
+							"raw": "{{baseUrl}}/clientes?size=1",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
-								"ordens-servico"
+								"clientes"
+							],
+							"query": [
+								{
+									"key": "size",
+									"value": "1"
+								}
 							]
 						},
-						"description": "Abre uma ordem de servico para um cliente da M2. `clienteId` e obrigatorio; `observacao`, `dataEntrada`, `itens` e `valorTotal` sao opcionais. Pode nascer vazia (e receber itens depois) ou ja com uma lista de `itens`. Se `valorTotal` vier no corpo, nasce **manual** (congelado); senao, e a soma dos itens. Salva `{{ordemServicoId}}`.",
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"clienteId\": {{clienteOsId}},\n  \"observacao\": \"Notebook nao liga e impressora com atolamento de papel\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						}
+						"description": "Requisicao-carona: o que importa e o script de pre-requisicao, que cria cliente, marca, equipamentos e servicos da pasta. Existe separada porque agora o `POST /ordens-servico` **precisa** dos ids de equipamento e servico ja no corpo — eles nao podem ser criados na mesma requisicao que os consome."
 					},
 					"response": [],
 					"event": [
@@ -2172,14 +2164,63 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('fixtures da pasta criadas', () => {",
+									"    ['clienteOsId', 'marcaOsId', 'equipamentoOsId', 'equipamentoOsId2',",
+									"     'servicoOsId', 'servicoOsId2', 'servicoInativoOsId']",
+									"        .forEach((v) => pm.expect(pm.collectionVariables.get(v), v).to.not.be.empty);",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Criar OS (201)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/ordens-servico",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"ordens-servico"
+							]
+						},
+						"description": "Abre uma ordem de servico para um cliente da M2. `clienteId` e **`itens` (com ao menos um elemento)** sao obrigatorios; `observacao`, `dataEntrada` e `valorTotal` sao opcionais. Cada item passa pelas mesmas validacoes do `POST` de item. Se `valorTotal` vier no corpo, a OS nasce **manual** (congelada); senao, e a soma dos servicos dos itens. Salva `{{ordemServicoId}}`.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"clienteId\": {{clienteOsId}},\n  \"observacao\": \"Notebook nao liga: formatacao autorizada na entrada\",\n  \"itens\": [\n    {\n      \"equipamentoId\": {{equipamentoOsId}},\n      \"servicoId\": {{servicoOsId}},\n      \"observacao\": \"cliente pediu backup dos documentos\"\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
 									"pm.test('201 Created', () => pm.response.to.have.status(201));",
 									"pm.test('Location aponta para a OS criada', () => {",
 									"    pm.expect(pm.response.headers.get('Location')).to.include('/ordens-servico/');",
 									"});",
 									"const b = pm.response.json();",
-									"pm.test('nasce EM_ANDAMENTO e com valorTotal zerado', () => {",
-									"    pm.expect(b.status).to.eql('EM_ANDAMENTO');",
-									"    pm.expect(Number(b.valorTotal)).to.eql(0);",
+									"pm.test('nasce EM_ANDAMENTO', () => pm.expect(b.status).to.eql('EM_ANDAMENTO'));",
+									"pm.test('valorTotal ja soma o servico do item da abertura (150.00)', () => {",
+									"    pm.expect(Number(b.valorTotal)).to.eql(150.00);",
+									"    pm.expect(b.valorTotalManual).to.be.false;",
 									"});",
 									"pm.test('datas de conclusao e entrega ainda vazias', () => {",
 									"    pm.expect(b.dataConcluida).to.be.null;",
@@ -2191,6 +2232,102 @@
 						}
 					],
 					"id": "f9bcbe1e-0b6b-42f6-a336-0be0e6b0a25d"
+				},
+				{
+					"name": "Criar OS sem itens (400)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/ordens-servico",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"ordens-servico"
+							]
+						},
+						"description": "A OS **nao abre vazia**: `itens` e obrigatorio e precisa ter ao menos um elemento. Lista ausente, `null` ou `[]` respondem **400**.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"clienteId\": {{clienteOsId}},\n  \"observacao\": \"OS sem nenhum servico lancado\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+									"const b = pm.response.json();",
+									"pm.test('mapa de erros aponta o campo itens', () => {",
+									"    pm.expect(b.title).to.eql('Dados invalidos');",
+									"    pm.expect(b.erros).to.have.property('itens');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Criar OS com itens vazio (400)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/ordens-servico",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"ordens-servico"
+							]
+						},
+						"description": "Mesma regra pelo outro lado: `\"itens\": []` tambem e recusado com **400**.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"clienteId\": {{clienteOsId}},\n  \"observacao\": \"OS com lista de itens vazia\",\n  \"itens\": []\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+									"const b = pm.response.json();",
+									"pm.test('mapa de erros aponta o campo itens', () => {",
+									"    pm.expect(b.title).to.eql('Dados invalidos');",
+									"    pm.expect(b.erros).to.have.property('itens');",
+									"});"
+								]
+							}
+						}
+					]
 				},
 				{
 					"name": "Criar OS para cancelamento (201)",
@@ -2214,7 +2351,7 @@
 						"description": "Abre uma OS extra so para o teste de cancelamento adiante. Salva `{{osDoClienteId}}`.",
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"clienteId\": {{clienteOsId}},\n  \"observacao\": \"OS destinada ao teste de cancelamento\"\n}",
+							"raw": "{\n  \"clienteId\": {{clienteOsId}},\n  \"observacao\": \"OS destinada ao teste de cancelamento\",\n  \"itens\": [\n    {\n      \"equipamentoId\": {{equipamentoOsId2}},\n      \"servicoId\": {{servicoOsId2}}\n    }\n  ]\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2277,13 +2414,31 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"// OS propria e autossuficiente para o teste do valorTotal",
+									"// fixtures proprias e autossuficientes: cliente, marca, equipamento, servico e a OS.",
+									"// A OS precisa nascer com ao menos um item, entao o modo automatico aqui vale 100.00.",
 									"const base = pm.collectionVariables.get('baseUrl');",
 									"const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
-									"pm.sendRequest({url: base + '/clientes', method: 'POST', header: h, body: {mode: 'raw', raw: JSON.stringify({nome: 'Cliente valorTotal', telefone: '4290000077'})}}, (e, r) => {",
-									"    const cli = r.json().id;",
-									"    pm.collectionVariables.set('osValorClienteId', cli);",
-									"    pm.sendRequest({url: base + '/ordens-servico', method: 'POST', header: h, body: {mode: 'raw', raw: JSON.stringify({clienteId: cli, observacao: 'OS para o teste de valorTotal'})}}, (e2, r2) => pm.collectionVariables.set('osValorId', r2.json().id));",
+									"const stamp = Date.now();",
+									"const post = (path, corpo, cb) => pm.sendRequest({",
+									"    url: base + path, method: 'POST', header: h,",
+									"    body: {mode: 'raw', raw: JSON.stringify(corpo)}",
+									"}, (e, r) => cb(r.json()));",
+									"",
+									"post('/clientes', {nome: 'Cliente valorTotal', telefone: '4290000077'}, (cli) => {",
+									"    pm.collectionVariables.set('osValorClienteId', cli.id);",
+									"    post('/marcas', {nome: 'Marca valorTotal ' + stamp}, (m) => {",
+									"        pm.collectionVariables.set('osValorMarcaId', m.id);",
+									"        post('/equipamentos', {clienteId: cli.id, marcaId: m.id, nome: 'Esmerilhadeira'}, (eq) => {",
+									"            pm.collectionVariables.set('osValorEquipamentoId', eq.id);",
+									"            post('/servicos', {nome: 'Troca de rolamento ' + stamp, valor: 100.00}, (sv) => {",
+									"                pm.collectionVariables.set('osValorServicoId', sv.id);",
+									"                post('/ordens-servico', {",
+									"                    clienteId: cli.id, observacao: 'OS para o teste de valorTotal',",
+									"                    itens: [{equipamentoId: eq.id, servicoId: sv.id}]",
+									"                }, (os) => pm.collectionVariables.set('osValorId', os.id));",
+									"            });",
+									"        });",
+									"    });",
 									"});"
 								]
 							}
@@ -2302,17 +2457,27 @@
 									"",
 									"const base = pm.collectionVariables.get('baseUrl');",
 									"const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
+									"const hd = {Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
 									"const osId = pm.collectionVariables.get('osValorId');",
-									"// reset: corpo vazio volta ao automatico (soma dos itens, aqui 0)",
+									"// reset: corpo vazio volta ao automatico e recalcula pelos itens (100.00, o unico item)",
 									"pm.sendRequest({url: base + '/ordens-servico/' + osId + '/valor-total', method: 'PATCH', header: h, body: {mode: 'raw', raw: '{}'}}, (e, r) => {",
-									"    pm.test('reset volta ao automatico', () => {",
+									"    pm.test('reset volta ao automatico e recalcula pelos itens', () => {",
 									"        pm.expect(r.json().valorTotalManual).to.be.false;",
-									"        pm.expect(Number(r.json().valorTotal)).to.eql(0);",
+									"        pm.expect(Number(r.json().valorTotal)).to.eql(100.00);",
 									"    });",
-									"    // limpeza: apaga a OS e o cliente criados aqui",
-									"    const hd = {Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
-									"    pm.sendRequest({url: base + '/ordens-servico/' + osId, method: 'DELETE', header: hd}, () => {",
-									"        pm.sendRequest({url: base + '/clientes/' + pm.collectionVariables.get('osValorClienteId'), method: 'DELETE', header: hd});",
+									"    // limpeza: esvazia a OS (DELETE exige OS sem itens), depois derruba as fixtures",
+									"    pm.sendRequest({url: base + '/ordens-servico/' + osId + '/itens', header: hd}, (e2, r2) => {",
+									"        const item = r2.json()[0];",
+									"        pm.sendRequest({url: base + '/ordens-servico/' + osId + '/itens/' + item.id, method: 'DELETE', header: hd}, () => {",
+									"            pm.sendRequest({url: base + '/ordens-servico/' + osId, method: 'DELETE', header: hd}, () => {",
+									"                pm.sendRequest({url: base + '/equipamentos/' + pm.collectionVariables.get('osValorEquipamentoId'), method: 'DELETE', header: hd});",
+									"                pm.sendRequest({url: base + '/servicos/' + pm.collectionVariables.get('osValorServicoId'), method: 'DELETE', header: hd});",
+									"                setTimeout(() => {",
+									"                    pm.sendRequest({url: base + '/marcas/' + pm.collectionVariables.get('osValorMarcaId'), method: 'DELETE', header: hd});",
+									"                    pm.sendRequest({url: base + '/clientes/' + pm.collectionVariables.get('osValorClienteId'), method: 'DELETE', header: hd});",
+									"                }, 400);",
+									"            });",
+									"        });",
 									"    });",
 									"});"
 								]
@@ -2919,7 +3084,7 @@
 								"{{osDescartavelId}}"
 							]
 						},
-						"description": "Remove a OS (204). Precisa estar sem itens, senao **422**."
+						"description": "A OS principal terminou ENTREGUE (historico, nao se apaga). O DELETE so aceita OS **sem itens** — e como toda OS nasce com pelo menos um, a descartavel e criada com um item e esvaziada no script antes da chamada."
 					},
 					"response": [],
 					"event": [
@@ -2928,14 +3093,27 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"// a OS principal terminou ENTREGUE (historico, nao se apaga): cria uma",
-									"// descartavel, EM_ANDAMENTO e sem itens, so para exercitar o DELETE",
+									"// a OS principal terminou ENTREGUE (historico, nao se apaga): cria uma descartavel",
+									"// EM_ANDAMENTO. Ela nasce obrigatoriamente com um item, entao o item e removido aqui",
+									"// para que o DELETE encontre a OS vazia que a regra exige.",
 									"const base = pm.collectionVariables.get('baseUrl');",
 									"const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
+									"const hd = {Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
 									"pm.sendRequest({",
 									"    url: base + '/ordens-servico', method: 'POST', header: h,",
-									"    body: {mode: 'raw', raw: JSON.stringify({clienteId: Number(pm.collectionVariables.get('clienteOsId'))})}",
-									"}, (e, r) => pm.collectionVariables.set('osDescartavelId', r.json().id));"
+									"    body: {mode: 'raw', raw: JSON.stringify({",
+									"        clienteId: Number(pm.collectionVariables.get('clienteOsId')),",
+									"        itens: [{equipamentoId: Number(pm.collectionVariables.get('equipamentoOsId')),",
+									"                 servicoId: Number(pm.collectionVariables.get('servicoOsId'))}]",
+									"    })}",
+									"}, (e, r) => {",
+									"    const id = r.json().id;",
+									"    pm.collectionVariables.set('osDescartavelId', id);",
+									"    pm.sendRequest({url: base + '/ordens-servico/' + id + '/itens', header: hd}, (e2, r2) => {",
+									"        pm.sendRequest({url: base + '/ordens-servico/' + id + '/itens/' + r2.json()[0].id,",
+									"                        method: 'DELETE', header: hd});",
+									"    });",
+									"});"
 								]
 							}
 						},
@@ -2947,7 +3125,10 @@
 									"pm.test('204 No Content', () => pm.response.to.have.status(204));",
 									"pm.test('corpo vazio', () => pm.expect(pm.response.text()).to.be.empty);",
 									"",
-									"// remove as fixtures da pasta, na ordem que respeita as FKs ON DELETE RESTRICT",
+									"// limpeza best-effort das fixtures, na ordem que respeita as FKs ON DELETE RESTRICT.",
+									"// As OSs terminais da pasta (ENTREGUE e CANCELADA) nao podem ser esvaziadas nem",
+									"// apagadas — sao historico —, entao o equipamento, o servico, a marca e o cliente",
+									"// presos a elas sobrevivem de proposito e os DELETEs abaixo respondem 409.",
 									"const base = pm.collectionVariables.get('baseUrl');",
 									"const h = {Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
 									"const del = (path) => pm.sendRequest({url: base + path, method: 'DELETE', header: h});",
@@ -3005,6 +3186,33 @@
 					"response": [],
 					"event": [
 						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.response.to.have.status(201));",
+									"pm.test('Location aponta para o item criado', () => {",
+									"    pm.expect(pm.response.headers.get('Location')).to.include('/itens/');",
+									"});",
+									"const b = pm.response.json();",
+									"pm.test('traz o resumo de equipamento e servico', () => {",
+									"    pm.expect(b.equipamento).to.have.all.keys('id', 'nome');",
+									"    pm.expect(b.servico).to.have.all.keys('id', 'nome', 'valor');",
+									"});",
+									"pm.collectionVariables.set('itemOsId', b.id);",
+									"",
+									"const base = pm.collectionVariables.get('baseUrl');",
+									"const h = {Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
+									"pm.sendRequest({url: base + '/ordens-servico/' + pm.collectionVariables.get('osItensId'), header: h},",
+									"    (e, r) => pm.test('valorTotal da OS recalculado para 150.00',",
+									"        () => pm.expect(Number(r.json().valorTotal)).to.eql(150.00)));",
+									"pm.sendRequest({url: base + '/servicos/' + pm.collectionVariables.get('servicoOsId'), header: h},",
+									"    (e, r) => pm.test('contadorUso do servico incrementado',",
+									"        () => pm.expect(r.json().contadorUso).to.be.above(0)));"
+								]
+							}
+						},
+						{
 							"listen": "prerequest",
 							"script": {
 								"type": "text/javascript",
@@ -3042,43 +3250,28 @@
 									"    pm.sendRequest({url: base + '/servicos/' + s3.id + '/desativar', method: 'PATCH', header: h});",
 									"});",
 									"",
-									"// alem das fixtures, esta pasta precisa de uma OS EM_ANDAMENTO para receber os itens",
+									"// Alem das fixtures, a pasta precisa de uma OS EM_ANDAMENTO e vazia para receber os",
+									"// itens dos testes. Como toda OS nasce com ao menos um item, ela e aberta com um item",
+									"// de partida que e removido em seguida — o que so vale enquanto ela esta EM_ANDAMENTO.",
 									"setTimeout(() => {",
 									"    pm.sendRequest({",
 									"        url: base + '/ordens-servico', method: 'POST', header: h,",
 									"        body: {mode: 'raw', raw: JSON.stringify({",
 									"            clienteId: Number(pm.collectionVariables.get('clienteOsId')),",
-									"            observacao: 'OS de teste dos itens'",
+									"            observacao: 'OS de teste dos itens',",
+									"            itens: [{equipamentoId: Number(pm.collectionVariables.get('equipamentoOsId')),",
+									"                     servicoId: Number(pm.collectionVariables.get('servicoOsId'))}]",
 									"        })}",
-									"    }, (e, r) => pm.collectionVariables.set('osItensId', r.json().id));",
+									"    }, (e, r) => {",
+									"        const osId = r.json().id;",
+									"        pm.collectionVariables.set('osItensId', osId);",
+									"        const hd = {Authorization: 'Bearer ' + token};",
+									"        pm.sendRequest({url: base + '/ordens-servico/' + osId + '/itens', header: hd}, (e2, r2) => {",
+									"            pm.sendRequest({url: base + '/ordens-servico/' + osId + '/itens/' + r2.json()[0].id,",
+									"                            method: 'DELETE', header: hd});",
+									"        });",
+									"    });",
 									"}, 600);"
-								]
-							}
-						},
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"pm.test('201 Created', () => pm.response.to.have.status(201));",
-									"pm.test('Location aponta para o item criado', () => {",
-									"    pm.expect(pm.response.headers.get('Location')).to.include('/itens/');",
-									"});",
-									"const b = pm.response.json();",
-									"pm.test('traz o resumo de equipamento e servico', () => {",
-									"    pm.expect(b.equipamento).to.have.all.keys('id', 'nome');",
-									"    pm.expect(b.servico).to.have.all.keys('id', 'nome', 'valor');",
-									"});",
-									"pm.collectionVariables.set('itemOsId', b.id);",
-									"",
-									"const base = pm.collectionVariables.get('baseUrl');",
-									"const h = {Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
-									"pm.sendRequest({url: base + '/ordens-servico/' + pm.collectionVariables.get('osItensId'), header: h},",
-									"    (e, r) => pm.test('valorTotal da OS recalculado para 150.00',",
-									"        () => pm.expect(Number(r.json().valorTotal)).to.eql(150.00)));",
-									"pm.sendRequest({url: base + '/servicos/' + pm.collectionVariables.get('servicoOsId'), header: h},",
-									"    (e, r) => pm.test('contadorUso do servico incrementado',",
-									"        () => pm.expect(r.json().contadorUso).to.be.above(0)));"
 								]
 							}
 						}
@@ -3312,22 +3505,6 @@
 					"response": [],
 					"event": [
 						{
-							"listen": "prerequest",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"// OS EM_ANDAMENTO do proprio cliente do token: a osDoClienteId da pasta 7",
-									"// termina CANCELADA, e ai o 422 viria da regra de status, nao da de posse",
-									"const base = pm.collectionVariables.get('baseUrl');",
-									"const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.collectionVariables.get('tokenAdmin')};",
-									"pm.sendRequest({",
-									"    url: base + '/ordens-servico', method: 'POST', header: h,",
-									"    body: {mode: 'raw', raw: JSON.stringify({observacao: 'OS do cliente para o teste de posse'})}",
-									"}, (e, r) => pm.collectionVariables.set('osClienteItensId', r.json().id));"
-								]
-							}
-						},
-						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
@@ -3335,6 +3512,37 @@
 									"pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
 									"pm.test('mensagem sobre o dono do equipamento', () => {",
 									"    pm.expect(pm.response.json().detail).to.include('nao pertence ao cliente');",
+									"});"
+								]
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// OS de OUTRO cliente, com equipamento proprio: o 422 tem que vir da regra de dominio",
+									"// (equipamento nao pertence ao cliente da OS), nao do status nem de autorizacao.",
+									"// A OS nasce com o item dela mesma; o teste tenta lancar o equipamento do cliente da pasta.",
+									"const base = pm.collectionVariables.get('baseUrl');",
+									"const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
+									"const post = (path, corpo, cb) => pm.sendRequest({",
+									"    url: base + path, method: 'POST', header: h,",
+									"    body: {mode: 'raw', raw: JSON.stringify(corpo)}",
+									"}, (e, r) => cb(r.json()));",
+									"",
+									"post('/clientes', {nome: 'Outro dono de OS', telefone: '4290000002'}, (cli) => {",
+									"    pm.collectionVariables.set('clienteItensOutroId', cli.id);",
+									"    post('/equipamentos', {clienteId: cli.id,",
+									"                           marcaId: Number(pm.collectionVariables.get('marcaOsId')),",
+									"                           nome: 'Furadeira de outro dono'}, (eq) => {",
+									"        pm.collectionVariables.set('equipamentoItensOutroId', eq.id);",
+									"        post('/ordens-servico', {",
+									"            clienteId: cli.id, observacao: 'OS de outro cliente para o teste de posse',",
+									"            itens: [{equipamentoId: eq.id,",
+									"                     servicoId: Number(pm.collectionVariables.get('servicoOsId'))}]",
+									"        }, (os) => pm.collectionVariables.set('osClienteItensId', os.id));",
+									"    });",
 									"});"
 								]
 							}
@@ -3610,26 +3818,6 @@
 					"response": [],
 					"event": [
 						{
-							"listen": "prerequest",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"// OS propria para este cenario: criada e concluida aqui, para nao travar a OS",
-									"// principal da pasta (uma OS concluida nao aceita mais remocao de itens)",
-									"const base = pm.collectionVariables.get('baseUrl');",
-									"const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
-									"pm.sendRequest({",
-									"    url: base + '/ordens-servico', method: 'POST', header: h,",
-									"    body: {mode: 'raw', raw: JSON.stringify({clienteId: Number(pm.collectionVariables.get('clienteOsId'))})}",
-									"}, (e, r) => {",
-									"    const id = r.json().id;",
-									"    pm.collectionVariables.set('osConcluidaId', id);",
-									"    pm.sendRequest({url: base + '/ordens-servico/' + id + '/concluir', method: 'PATCH', header: h});",
-									"});"
-								]
-							}
-						},
-						{
 							"listen": "test",
 							"script": {
 								"type": "text/javascript",
@@ -3637,6 +3825,31 @@
 									"pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
 									"pm.test('a mensagem informa o status atual', () => {",
 									"    pm.expect(pm.response.json().detail).to.include('CONCLUIDA');",
+									"});"
+								]
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"// OS propria para este cenario: criada e concluida aqui, para nao travar a OS",
+									"// principal da pasta (uma OS concluida nao aceita mais remocao de itens).",
+									"// Ela nasce com o item obrigatorio; o teste tenta lancar um segundo depois de concluida.",
+									"const base = pm.collectionVariables.get('baseUrl');",
+									"const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
+									"pm.sendRequest({",
+									"    url: base + '/ordens-servico', method: 'POST', header: h,",
+									"    body: {mode: 'raw', raw: JSON.stringify({",
+									"        clienteId: Number(pm.collectionVariables.get('clienteOsId')),",
+									"        itens: [{equipamentoId: Number(pm.collectionVariables.get('equipamentoOsId2')),",
+									"                 servicoId: Number(pm.collectionVariables.get('servicoOsId2'))}]",
+									"    })}",
+									"}, (e, r) => {",
+									"    const id = r.json().id;",
+									"    pm.collectionVariables.set('osConcluidaId', id);",
+									"    pm.sendRequest({url: base + '/ordens-servico/' + id + '/concluir', method: 'PATCH', header: h});",
 									"});"
 								]
 							}
@@ -3697,7 +3910,7 @@
 								"{{osItensId}}"
 							]
 						},
-						"description": "Remove os itens e as fixtures criadas pela pasta, deixando o banco limpo."
+						"description": "Esvazia e apaga a OS da pasta. As OSs auxiliares que ficaram CONCLUIDA (historico) nao podem mais ser esvaziadas, entao elas e as fixtures presas a elas sobrevivem de proposito — os DELETEs correspondentes respondem 409."
 					},
 					"response": [],
 					"event": [
@@ -3720,24 +3933,33 @@
 								"type": "text/javascript",
 								"exec": [
 									"pm.test('204 No Content', () => pm.response.to.have.status(204));",
-									"const osConcluida = pm.collectionVariables.get('osConcluidaId');",
-									"pm.sendRequest({url: pm.collectionVariables.get('baseUrl') + '/ordens-servico/' + osConcluida,",
-									"                method: 'DELETE', header: {Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')}});",
-									"pm.sendRequest({url: pm.collectionVariables.get('baseUrl') + '/ordens-servico/'",
-									"                     + pm.collectionVariables.get('osClienteItensId'),",
-									"                method: 'DELETE',",
-									"                header: {Authorization: 'Bearer ' + pm.collectionVariables.get('tokenAdmin')}});",
 									"",
-									"// remove as fixtures da pasta, na ordem que respeita as FKs ON DELETE RESTRICT",
 									"const base = pm.collectionVariables.get('baseUrl');",
 									"const h = {Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
 									"const del = (path) => pm.sendRequest({url: base + path, method: 'DELETE', header: h});",
+									"",
+									"// a OS de outro cliente ficou EM_ANDAMENTO: da para esvaziar e apagar de verdade",
+									"const osOutro = pm.collectionVariables.get('osClienteItensId');",
+									"pm.sendRequest({url: base + '/ordens-servico/' + osOutro + '/itens', header: h}, (e, r) => {",
+									"    const itens = r.json();",
+									"    itens.forEach((i) => del('/ordens-servico/' + osOutro + '/itens/' + i.id));",
+									"    setTimeout(() => {",
+									"        del('/ordens-servico/' + osOutro);",
+									"        setTimeout(() => {",
+									"            del('/equipamentos/' + pm.collectionVariables.get('equipamentoItensOutroId'));",
+									"            setTimeout(() => del('/clientes/' + pm.collectionVariables.get('clienteItensOutroId')), 300);",
+									"        }, 300);",
+									"    }, 300);",
+									"});",
+									"",
+									"// limpeza best-effort das demais fixtures, na ordem que respeita as FKs ON DELETE RESTRICT.",
+									"// A OS concluida do cenario 422 e historico: ela e o equipamento/servico presos a ela ficam.",
 									"['equipamentoOsId', 'equipamentoOsId2'].forEach((v) => del('/equipamentos/' + pm.collectionVariables.get(v)));",
 									"['servicoOsId', 'servicoOsId2', 'servicoInativoOsId'].forEach((v) => del('/servicos/' + pm.collectionVariables.get(v)));",
 									"setTimeout(() => {",
 									"    del('/marcas/' + pm.collectionVariables.get('marcaOsId'));",
 									"    del('/clientes/' + pm.collectionVariables.get('clienteOsId'));",
-									"}, 400);"
+									"}, 1600);"
 								]
 							}
 						}
@@ -4348,6 +4570,31 @@
 		{
 			"key": "osValorClienteId",
 			"value": ""
+		},
+		{
+			"key": "clienteItensOutroId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "equipamentoItensOutroId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "osValorMarcaId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "osValorEquipamentoId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "osValorServicoId",
+			"value": "",
+			"type": "string"
 		}
 	]
 }

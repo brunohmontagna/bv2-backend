@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Size;
@@ -25,8 +26,9 @@ public record OrdemServicoCriacaoRequest(
         @PastOrPresent(message = "A data de entrada nao pode ser futura")
         LocalDate dataEntrada,
 
-        @Schema(description = "Itens que ja compoem a OS na abertura (equipamento + servico). "
-                + "Opcional: pode-se abrir a OS vazia e lancar os itens depois.")
+        @Schema(description = "Itens que compoem a OS (equipamento + servico). Obrigatorio: "
+                + "uma OS nao existe sem ao menos um servico lancado.")
+        @NotEmpty(message = "A ordem de servico precisa ter ao menos um item")
         @Valid
         List<ItemOsCriacaoRequest> itens,
 

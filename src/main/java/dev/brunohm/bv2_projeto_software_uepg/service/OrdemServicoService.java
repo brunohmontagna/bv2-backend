@@ -56,8 +56,10 @@ public class OrdemServicoService {
     // ------------------------------------------------------------------
 
     /**
-     * A OS nasce sem itens, entao o valorTotal comeca zerado (a coluna e NOT NULL)
-     * e so muda via itens.
+     * A OS nasce com pelo menos um item (@NotEmpty no request): uma ordem sem
+     * servico lancado nao representa trabalho nenhum. A linha e salva antes dos
+     * itens porque eles precisam do id da OS, entao o valorTotal comeca zerado (a
+     * coluna e NOT NULL) e recebe a soma logo em seguida.
      */
     @Transactional
     public OrdemServicoResponse criar(OrdemServicoCriacaoRequest request) {
@@ -77,15 +79,13 @@ public class OrdemServicoService {
                 .valorTotalManual(false)
                 .build());
 
-        // Itens ja informados na abertura (opcional). Cada um passa pelas mesmas
-        // validacoes do POST de item; a soma vira o valorTotal logo abaixo.
-        if (request.itens() != null) {
-            for (ItemOsCriacaoRequest item : request.itens()) {
-                criarItem(ordemServico, item);
-            }
+        // Cada item passa pelas mesmas validacoes do POST de item; a soma vira o
+        // valorTotal logo abaixo.
+        for (ItemOsCriacaoRequest item : request.itens()) {
+            criarItem(ordemServico, item);
         }
 
-        // valorTotal enviado a mao congela o total; senao, soma dos itens (0 se vazia).
+        // valorTotal enviado a mao congela o total; senao, soma dos servicos dos itens.
         if (request.valorTotal() != null) {
             ordemServico.setValorTotalManual(true);
             ordemServico.setValorTotal(request.valorTotal());
