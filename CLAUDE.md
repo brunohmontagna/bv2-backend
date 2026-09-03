@@ -66,6 +66,7 @@ As APIs REST estão finalizadas e já refatoradas para o modelo de papéis corre
 | Equipamentos | `/equipamentos` | pronto |
 | Ordens de serviço + itens | `/ordens-servico` | pronto |
 | Usuários | `/usuarios` | pronto (MASTER; `/usuarios/eu` para qualquer autenticado) |
+| Painel | `/painel` | pronto (dashboard agregado, somente leitura) |
 | Notificações | — | tabela e entidade criadas (V8), sem endpoints e sem integração n8n |
 
 Não há testes automatizados além do `contextLoads` gerado pelo Spring Initializr. A
@@ -116,7 +117,7 @@ exception/    exceções de negócio + GlobalExceptionHandler (RFC 7807)
 config/       OpenApiConfig
 ```
 
-Migrations em `src/main/resources/db/migration` (`V1` … `V10`).
+Migrations em `src/main/resources/db/migration` (`V1` … `V17`).
 
 ## Modelo de dados
 
@@ -284,6 +285,46 @@ Como se define:
   320 — colisão responde 409. Garantido pelo índice `uq_servicos_nome_valor` (V15) e por uma
   pré-checagem no service.
 - **Marca**: nome único (case-insensitive).
+
+### Painel
+
+`GET /painel` é a única leitura agregada da API: consolida resumo, faturamento, série
+mensal e rankings numa resposta só, para o dashboard. Qualquer autenticado acessa — MASTER
+e ADMIN por igual, sem `@PreAuthorize`.
+
+- **Período** por `?dataInicio=&dataFim=`, ambos opcionais e **inclusivos nas duas pontas**.
+  Omitidos, valem os últimos 30 dias. `dataInicio` sozinha ancora no `dataFim` informado, e
+  não em hoje — senão `?dataFim=2024-01-01` geraria um intervalo invertido artificial. A
+  janela resolvida volta em `periodo`: sem esse eco o front não sabe o que está exibindo.
+- **Período invertido responde 422**, ao contrário de `GET /ordens-servico`, que aceita e
+  devolve página vazia. A diferença é deliberada: lá o vazio é obviamente vazio; aqui um
+  painel zerado se disfarça de "não houve movimento".
+- **Faturamento**: OS `ENTREGUE` é `faturamentoRealizado`; `EM_ANDAMENTO` + `CONCLUIDA` é
+  `faturamentoEmAberto`; `CANCELADA` **nunca** entra em nenhum dos dois. A soma vem sempre
+  de `ordens_servico.valor_total`, **jamais dos itens** — `valorTotalManual` existe
+  justamente para os dois números divergirem.
+- **Cada métrica usa a data do próprio evento**, e não uma data única para tudo: entrada de
+  trabalho e execução de serviço por `dataEntrada`; faturamento realizado e entrega por
+  `dataEntregue`. `faturamentoEmAberto` e a contagem de valor fixado à mão ficam com
+  `dataEntrada` por eliminação — uma OS não entregue não tem outro evento datado.
+- **`resumo` é a exceção: não é recortado por período.** Contagem de OS por status e
+  tamanho dos cadastros são estado atual, não movimento da janela.
+- Período sem movimento responde **200 com tudo zerado** — nunca 404, nunca corpo parcial.
+  Os quatro status aparecem mesmo em zero, a série traz todos os meses do intervalo
+  (inclusive os vazios, para o gráfico não ter buracos) e os rankings vêm `[]`.
+- **Rankings contam coisas diferentes de propósito**: serviço conta *execuções* (`count`
+  de itens — o mesmo serviço entra duas vezes na OS se for para equipamentos diferentes);
+  marca conta *ordens* (`count distinct` de OS). Os dois excluem OS `CANCELADA`. Top 5 fixo,
+  sem query param.
+- **É o primeiro precedente de query agregada do projeto** (antes não havia nenhum `@Query`).
+  JPQL com projeção por construtor, não SQL nativo: os enums são tipos nomeados do Postgres,
+  então no nativo toda comparação precisaria de `::status_os`. **Nunca escreva o literal do
+  status dentro do JPQL** — passe `StatusOs` como parâmetro. As queries moram no repositório
+  da entidade que agregam; as dos rankings de serviço e marca estão no `ItemOsRepository`
+  porque `OrdemServico` não mapeia `@OneToMany` de itens.
+- São **12 consultas por requisição**, número fixo que não cresce com o volume (não há N+1).
+- A `V17` criou os primeiros índices não-implícitos do schema (datas, FKs). Com o volume
+  atual o planner ainda prefere seq scan; eles documentam o padrão de acesso.
 
 ### Notificações
 
