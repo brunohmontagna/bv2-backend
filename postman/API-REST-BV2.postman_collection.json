@@ -1,7 +1,7 @@
 {
 	"info": {
 		"name": "API REST BV2 | Projeto UEPG",
-		"description": "# API REST BV2 - Sistema de Ordens de Servico\n\nProjeto de Engenharia de Software - UEPG. Cliente real: **M2 Equipamentos** (Ponta Grossa/PR), assistencia de maquinas eletricas e mecanicas.\n\n**Spring Boot 4 | Java 21 | PostgreSQL | JWT (java-jwt / Auth0)**\n\n## Papeis\nQuem faz **login** e a equipe desenvolvedora (**MASTER**) e a M2 (**ADMIN**). Os dois operam todo o sistema por igual; a **unica** diferenca e que so o MASTER enxerga o cadastro de usuarios (`/usuarios`).\n\n**Cliente nao e usuario.** O que `/clientes` lista sao os clientes da M2 - quem leva o equipamento para consertar. Eles **nao fazem login**.\n\n| Papel | Enxerga /usuarios | Demais recursos |\n|---|---|---|\n| **MASTER** | sim | tudo |\n| **ADMIN** | nao (403) | tudo |\n\n## Como usar\n1. Suba a aplicacao (`./mvnw spring-boot:run`) na porta 8080.\n2. Preencha `{{masterSenha}}` e rode **1. Autenticacao > Login (MASTER)** - o token vai para `{{tokenMaster}}`, aplicado por padrao a toda a colecao.\n3. Rode **9. Usuarios > Criar usuario ADMIN**, preencha `{{adminSenha}}` e rode **Login (ADMIN)** (salva `{{tokenAdmin}}`) para os cenarios 403 e /usuarios/eu.\n4. As pastas 2 a 8 criam e limpam as proprias fixtures.\n\n## Padrao de erros - ProblemDetail (RFC 7807)\n`type`, `title`, `status`, `detail`, `instance`, `timestamp` e, na validacao, um mapa `erros` (campo -> mensagem).\n\n| Status | Quando |\n|---|---|\n| **400** | Bean Validation, JSON malformado, ou `clienteId` ausente na criacao |\n| **401** | sem token, token invalido/expirado, ou usuario desativado |\n| **403** | ADMIN tentando acessar `/usuarios` |\n| **404** | id inexistente |\n| **409** | nome/e-mail duplicado, ou exclusao barrada por FK `ON DELETE RESTRICT` |\n| **422** | regra de negocio (cliente inativo, transicao de status invalida, MASTER desativando a si mesmo) |\n",
+		"description": "# API REST BV2 - Sistema de Ordens de Servico\n\nProjeto de Engenharia de Software - UEPG. Cliente real: **M2 Equipamentos** (Ponta Grossa/PR), assistencia de maquinas eletricas e mecanicas.\n\n**Spring Boot 4 | Java 21 | PostgreSQL | JWT (java-jwt / Auth0)**\n\n## Papeis\nQuem faz **login** e a equipe desenvolvedora (**MASTER**) e a M2 (**ADMIN**). Os dois operam todo o sistema por igual; a **unica** diferenca e que so o MASTER enxerga o cadastro de usuarios (`/usuarios`).\n\n**Cliente nao e usuario.** O que `/clientes` lista sao os clientes da M2 - quem leva o equipamento para consertar. Eles **nao fazem login**.\n\n| Papel | Enxerga /usuarios | Demais recursos |\n|---|---|---|\n| **MASTER** | sim | tudo |\n| **ADMIN** | nao (403) | tudo |\n\n## Como usar\n1. Suba a aplicacao (`./mvnw spring-boot:run`) na porta 8080.\n2. Preencha `{{masterSenha}}` e rode **1. Autenticacao > Login (MASTER)** - o token vai para `{{tokenMaster}}`, aplicado por padrao a toda a colecao.\n3. Rode **9. Usuarios > Criar usuario ADMIN**, preencha `{{adminSenha}}` e rode **Login (ADMIN)** (salva `{{tokenAdmin}}`) para os cenarios 403 e /usuarios/eu.\n4. As pastas 2 a 8 criam e limpam as proprias fixtures.\n5. **10. Painel** so le: nao cria fixtures nem altera nada. Rode depois das outras pastas, ou com o banco ja povoado - num banco vazio ele responde 200 com tudo zerado, que e justamente o cenario testado em *Periodo sem movimento*.\n\n## Padrao de erros - ProblemDetail (RFC 7807)\n`type`, `title`, `status`, `detail`, `instance`, `timestamp` e, na validacao, um mapa `erros` (campo -> mensagem).\n\n| Status | Quando |\n|---|---|\n| **400** | Bean Validation, JSON malformado, ou `clienteId` ausente na criacao |\n| **401** | sem token, token invalido/expirado, ou usuario desativado |\n| **403** | ADMIN tentando acessar `/usuarios` |\n| **404** | id inexistente |\n| **409** | nome/e-mail duplicado, ou exclusao barrada por FK `ON DELETE RESTRICT` |\n| **422** | regra de negocio (cliente inativo, transicao de status invalida, MASTER desativando a si mesmo, periodo invertido no painel) |\n",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_postman_id": "a795aca7-1a01-41f7-93db-c9fc32622a16"
 	},
@@ -4388,6 +4388,295 @@
 				}
 			],
 			"id": "4b8cc7bc-77d5-4add-af3e-4f376c7138c9"
+		},
+		{
+			"name": "10. Painel",
+			"description": "Dashboard consolidado, somente leitura. Qualquer usuario autenticado acessa — MASTER e ADMIN por igual, sem 403.\n\n**Periodo**: `dataInicio` e `dataFim` sao opcionais e **inclusivos nas duas pontas**. Omitidos, valem os ultimos 30 dias, e a janela resolvida volta em `periodo`.\n\n**Cada metrica usa a data do proprio evento**: entrada de trabalho e execucao de servico por `dataEntrada`; faturamento realizado e entrega por `dataEntregue`. O bloco `resumo` e a unica excecao — e estado atual, nao recortado por periodo.\n\n**Faturamento**: OS `ENTREGUE` conta como realizado; `EM_ANDAMENTO` + `CONCLUIDA` como em aberto; `CANCELADA` nunca entra.\n\nA pasta nao cria fixtures: le o que estiver no banco. Os testes verificam estrutura e coerencia interna, nao valores absolutos.",
+			"item": [
+				{
+					"name": "Painel (padrao: ultimos 30 dias)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/painel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"painel"
+							]
+						},
+						"description": "Sem parametros. O servidor resolve a janela e a devolve em `periodo` — sem esse eco o front nao teria como rotular o que esta exibindo."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"const b = pm.response.json();",
+									"pm.test('traz os cinco blocos', () => {",
+									"    pm.expect(b).to.have.all.keys('periodo', 'resumo', 'faturamento', 'serieMensal', 'rankings');",
+									"});",
+									"pm.test('periodo padrao e de 30 dias', () => {",
+									"    const dias = (new Date(b.periodo.dataFim) - new Date(b.periodo.dataInicio)) / 86400000;",
+									"    pm.expect(dias).to.eql(30);",
+									"});",
+									"pm.test('os quatro status aparecem, mesmo zerados', () => {",
+									"    pm.expect(b.resumo.ordensPorStatus).to.have.all.keys(",
+									"        'EM_ANDAMENTO', 'CONCLUIDA', 'ENTREGUE', 'CANCELADA');",
+									"});",
+									"pm.test('ticket medio = realizado / entregues', () => {",
+									"    const f = b.faturamento;",
+									"    const esperado = f.ordensEntregues > 0",
+									"        ? Number((f.faturamentoRealizado / f.ordensEntregues).toFixed(2))",
+									"        : 0;",
+									"    pm.expect(Number(f.ticketMedio)).to.be.closeTo(esperado, 0.01);",
+									"});",
+									"pm.test('rankings vem como listas, nunca null', () => {",
+									"    ['servicosMaisExecutados', 'clientesPorFaturamento', 'marcasMaisAtendidas']",
+									"        .forEach((k) => pm.expect(b.rankings[k], k).to.be.an('array'));",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Painel com periodo",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/painel?dataInicio=2026-01-01&dataFim=2026-06-30",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"painel"
+							],
+							"query": [
+								{
+									"key": "dataInicio",
+									"value": "2026-01-01"
+								},
+								{
+									"key": "dataFim",
+									"value": "2026-06-30"
+								}
+							]
+						},
+						"description": "Janela explicita. `serieMensal` traz **um ponto por mes do intervalo**, inclusive os meses sem movimento — o grafico nao pode ter buracos."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"const b = pm.response.json();",
+									"pm.test('periodo ecoa o que foi enviado', () => {",
+									"    pm.expect(b.periodo.dataInicio).to.eql('2026-01-01');",
+									"    pm.expect(b.periodo.dataFim).to.eql('2026-06-30');",
+									"});",
+									"pm.test('serieMensal cobre os 6 meses, sem buracos', () => {",
+									"    pm.expect(b.serieMensal.length).to.eql(6);",
+									"    pm.expect(b.serieMensal.map((m) => m.mes)).to.eql(",
+									"        ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06']);",
+									"});",
+									"pm.test('rankings respeitam o teto de 5', () => {",
+									"    Object.values(b.rankings).forEach((r) => pm.expect(r.length).to.be.at.most(5));",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Periodo sem movimento (zeros)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/painel?dataInicio=2020-01-01&dataFim=2020-12-31",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"painel"
+							],
+							"query": [
+								{
+									"key": "dataInicio",
+									"value": "2020-01-01"
+								},
+								{
+									"key": "dataFim",
+									"value": "2020-12-31"
+								}
+							]
+						},
+						"description": "Periodo vazio responde **200 com tudo zerado**, nunca 404 nem corpo parcial: 'nao houve movimento' e uma resposta legitima do painel.\n\nE o caso que prova o tratamento de nulo — `sum()` sem linhas volta `null` do banco, nao zero, e e aqui que um NullPointerException apareceria.\n\n`resumo` continua preenchido de proposito: ele e estado atual, nao do periodo."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"const b = pm.response.json();",
+									"pm.test('faturamento zerado, sem null', () => {",
+									"    const f = b.faturamento;",
+									"    pm.expect(Number(f.faturamentoRealizado)).to.eql(0);",
+									"    pm.expect(Number(f.faturamentoEmAberto)).to.eql(0);",
+									"    pm.expect(Number(f.ticketMedio)).to.eql(0);",
+									"    pm.expect(f.ordensEntregues).to.eql(0);",
+									"});",
+									"pm.test('rankings vazios, nunca null', () => {",
+									"    Object.values(b.rankings).forEach((r) => pm.expect(r).to.eql([]));",
+									"});",
+									"pm.test('os 12 meses de 2020 aparecem zerados', () => {",
+									"    pm.expect(b.serieMensal.length).to.eql(12);",
+									"    b.serieMensal.forEach((m) => {",
+									"        pm.expect(m.ordensAbertas).to.eql(0);",
+									"        pm.expect(Number(m.faturamento)).to.eql(0);",
+									"    });",
+									"});",
+									"pm.test('resumo nao e recortado por periodo', () => {",
+									"    pm.expect(b.resumo.ordensPorStatus).to.have.property('EM_ANDAMENTO');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Periodo invertido (422)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/painel?dataInicio=2026-12-31&dataFim=2026-01-01",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"painel"
+							],
+							"query": [
+								{
+									"key": "dataInicio",
+									"value": "2026-12-31"
+								},
+								{
+									"key": "dataFim",
+									"value": "2026-01-01"
+								}
+							]
+						},
+						"description": "Data inicial depois da final responde **422**, em vez de devolver um painel zerado que o usuario leria como 'nao houve movimento' em vez de 'a data esta errada'.\n\nNote a diferenca deliberada para `GET /ordens-servico`, que aceita periodo invertido e devolve pagina vazia: la o vazio e obviamente vazio."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
+									"const b = pm.response.json();",
+									"pm.test('regra de negocio, com mensagem util', () => {",
+									"    pm.expect(b.title).to.eql('Regra de negocio violada');",
+									"    pm.expect(b.detail).to.include('posterior');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Data mal formatada (400)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/painel?dataInicio=ontem",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"painel"
+							],
+							"query": [
+								{
+									"key": "dataInicio",
+									"value": "ontem"
+								}
+							]
+						},
+						"description": "Data fora do ISO `AAAA-MM-DD` nem chega ao service: para no bind do `@DateTimeFormat` e vira **400** no GlobalExceptionHandler."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+									"pm.test('aponta o parametro invalido', () => {",
+									"    const b = pm.response.json();",
+									"    pm.expect(b.title).to.eql('Parametro invalido');",
+									"    pm.expect(b.detail).to.include('dataInicio');",
+									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Sem token (401)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/painel",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"painel"
+							]
+						},
+						"description": "O painel nao esta na lista de rotas publicas: cai em `anyRequest().authenticated()` como todo o resto da API.",
+						"auth": {
+							"type": "noauth"
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
+									"pm.test('ProblemDetail de autenticacao', () => {",
+									"    pm.expect(pm.response.json().title).to.eql('Nao autenticado');",
+									"});"
+								]
+							}
+						}
+					]
+				}
+			]
 		}
 	],
 	"variable": [

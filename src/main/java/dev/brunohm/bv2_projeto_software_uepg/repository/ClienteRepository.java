@@ -14,4 +14,7 @@ import dev.brunohm.bv2_projeto_software_uepg.domain.entity.Cliente;
 @Repository
 public interface ClienteRepository
         extends JpaRepository<Cliente, Long>, JpaSpecificationExecutor<Cliente> {
+
+    /* Resumo do painel: cliente inativo saiu da carteira e nao conta como base ativa. */
+    long countByAtivoTrue();
 }

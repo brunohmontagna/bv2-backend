@@ -16,4 +16,7 @@ public interface ServicoRepository extends JpaRepository<Servico, Long>, JpaSpec
 
     /* Usado na atualizacao, para o servico nao colidir com ele mesmo. */
     boolean existsByNomeIgnoreCaseAndValorAndIdNot(String nome, BigDecimal valor, Long id);
+
+    /* Resumo do painel: mede o catalogo oferecido hoje, nao o historico. */
+    long countByAtivoTrue();
 }
