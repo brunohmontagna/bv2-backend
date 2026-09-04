@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -17,6 +18,7 @@ import dev.brunohm.bv2_projeto_software_uepg.domain.entity.ItemOs;
 import dev.brunohm.bv2_projeto_software_uepg.domain.entity.OrdemServico;
 import dev.brunohm.bv2_projeto_software_uepg.domain.entity.Servico;
 import dev.brunohm.bv2_projeto_software_uepg.domain.enums.StatusOs;
+import dev.brunohm.bv2_projeto_software_uepg.domain.evento.OrdemServicoStatusAlteradoEvent;
 import dev.brunohm.bv2_projeto_software_uepg.dto.PaginaResponse;
 import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.ItemOsAtualizacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.ordemservico.ItemOsCriacaoRequest;
@@ -50,6 +52,7 @@ public class OrdemServicoService {
     private final ClienteRepository clienteRepository;
     private final EquipamentoRepository equipamentoRepository;
     private final ServicoRepository servicoRepository;
+    private final ApplicationEventPublisher eventos;
 
     // ------------------------------------------------------------------
     // Ordem de servico
@@ -217,7 +220,20 @@ public class OrdemServicoService {
         }
         ordemServico.setStatus(destino);
 
-        return OrdemServicoResponse.fromEntity(ordemServicoRepository.save(ordemServico));
+        OrdemServicoResponse resposta = OrdemServicoResponse
+                .fromEntity(ordemServicoRepository.save(ordemServico));
+
+        /*
+         * Dispara a notificacao ao cliente. O consumidor roda em AFTER_COMMIT, entao
+         * o WhatsApp so sai se esta transacao realmente for adiante — e uma falha do
+         * n8n nao volta como erro desta requisicao.
+         *
+         * Fica depois do return idempotente la em cima (atual == destino): repetir o
+         * status atual e no-op e nao pode remandar mensagem para o cliente.
+         */
+        eventos.publishEvent(new OrdemServicoStatusAlteradoEvent(ordemServico.getId(), atual, destino));
+
+        return resposta;
     }
 
     // ------------------------------------------------------------------

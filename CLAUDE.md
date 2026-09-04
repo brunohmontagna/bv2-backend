@@ -47,7 +47,7 @@ clientes *dela*.
 | Banco | PostgreSQL 18, migrations com Flyway |
 | Auth | JWT (HMAC256, biblioteca `com.auth0:java-jwt`) |
 | Docs | springdoc-openapi / Swagger UI |
-| Automações | n8n 2.x (notificações — ainda não implementado) |
+| Automações | n8n 2.x (webhook de saída que repassa a notificação ao WhatsApp) |
 | Frontend | React 19, TypeScript 6, Vite 8 (ainda não iniciado neste repositório) |
 
 Este repositório contém **apenas o backend** por enquanto. O frontend virá depois (ou em
@@ -67,7 +67,7 @@ As APIs REST estão finalizadas e já refatoradas para o modelo de papéis corre
 | Ordens de serviço + itens | `/ordens-servico` | pronto |
 | Usuários | `/usuarios` | pronto (MASTER; `/usuarios/eu` para qualquer autenticado) |
 | Painel | `/painel` | pronto (dashboard agregado, somente leitura) |
-| Notificações | — | tabela e entidade criadas (V8), sem endpoints e sem integração n8n |
+| Notificações | `/notificacoes` | pronto (disparo automático na troca de status, via n8n) |
 
 Não há testes automatizados além do `contextLoads` gerado pelo Spring Initializr. A
 validação hoje é manual, via Swagger UI e a coleção Postman em `postman/`.
@@ -114,10 +114,11 @@ domain/       entity/ (JPA) e enums/
 dto/          records de request/response, um subpacote por recurso
 security/     JWT, UserDetails, SecurityConfig, tradução de 401/403
 exception/    exceções de negócio + GlobalExceptionHandler (RFC 7807)
+integration/  clientes HTTP de saída (hoje só o webhook do n8n)
 config/       OpenApiConfig
 ```
 
-Migrations em `src/main/resources/db/migration` (`V1` … `V17`).
+Migrations em `src/main/resources/db/migration` (`V1` … `V18`).
 
 ## Modelo de dados
 
@@ -127,6 +128,8 @@ usuarios                        (MASTER / ADMIN — quem loga; ilha isolada)
 clientes ──┬── (N) equipamentos ── (N:1) marcas
            ├── (N) ordens_servico ── (N) itens_os ──┬── equipamento
            └── (N) notificacoes                     └── servicos
+
+templates_notificacao           (configuração da notificação; PK = status_os)
 ```
 
 `usuarios` **não se relaciona com nada**. Autenticação e domínio são grafos separados.
@@ -138,11 +141,15 @@ clientes ──┬── (N) equipamentos ── (N:1) marcas
 - **equipamentos** — pertencem a um cliente e a uma marca.
 - **ordens_servico** — pertencem a um cliente; `status`, três datas, `valor_total`.
 - **itens_os** — composição da OS: `(ordem_servico, equipamento, servico)`, chave única.
-- **notificacoes** — mensagens a enviar ao cliente da M2; `tipo`, `status`, `tentativas`.
+- **notificacoes** — log de envios ao cliente da M2: o texto que saiu, `status_os` que
+  disparou, `status` do envio e `tentativas`. Escrita só pelo sistema.
+- **templates_notificacao** — configuração: um texto e uma flag `ativo` por status de OS.
 
 Todas as FKs são `ON DELETE RESTRICT`: nada com histórico vinculado é apagado por engano.
-Os enums são tipos nativos do Postgres (`status_os`, `role_usuario`, `tipo_notificacao`,
-`status_notificacao`), mapeados com `@JdbcTypeCode(SqlTypes.NAMED_ENUM)`.
+Os enums são tipos nativos do Postgres (`status_os`, `role_usuario`,
+`status_notificacao`), mapeados com `@JdbcTypeCode(SqlTypes.NAMED_ENUM)`. O
+`tipo_notificacao` existiu entre a `V8` e a `V18`: as notificações passaram a ser chaveadas
+pelo próprio `status_os`, e um segundo enum paralelo só criaria duas fontes de verdade.
 
 O vínculo `clientes.id_usuario` foi removido na `V12`; a flag `ativo` de `usuarios` veio na
 `V13`.
@@ -328,10 +335,67 @@ e ADMIN por igual, sem `@PreAuthorize`.
 
 ### Notificações
 
-Tabela e entidade existem (`PRAZO_INICIADO`, `PRAZO_ENCERRADO`, `PERSONALIZADO`; status
-`PENDENTE` / `ENVIADO` / `FALHOU`, com contador de `tentativas`), mas **não há regra de
-negócio implementada** — nem endpoints, nem disparo, nem integração com o n8n. Vão para o
-cliente da M2, não para um usuário do sistema. A ser definido.
+Quando a OS muda de status, o cliente da M2 recebe um WhatsApp. Vão para o **cliente da
+M2**, nunca para um usuário do sistema. O fluxo é de mão única — o BV2 é quem troca o
+status, então ele mesmo chama o n8n; não há polling nem rota de entrada:
+
+```
+transicionar() ──commit──> evento AFTER_COMMIT ──> POST no webhook do n8n ──> WhatsApp
+```
+
+**Duas tabelas, dois papéis.** `templates_notificacao` é configuração (o que a M2 edita);
+`notificacoes` é log de execução (o que o sistema escreveu). A API **edita a primeira e só
+lê a segunda** — não há `POST` nem `DELETE` de notificação.
+
+- **A chave é o próprio `StatusOs`**, não um enum de "tipo de notificação". O que dispara o
+  envio é a transição da OS; um segundo enum paralelo criaria duas fontes de verdade. Foi o
+  que motivou dropar o `tipo_notificacao` na `V18`.
+- **Notificam `CONCLUIDA`, `ENTREGUE` e `CANCELADA`**, as três linhas semeadas na `V18`.
+  `EM_ANDAMENTO` não notifica por não ter linha — não por um `if` no código. Habilitar
+  abertura de OS um dia é um `INSERT`, não uma migration de enum.
+- **Nascem todas desligadas** (`ativo = false`): ninguém manda WhatsApp para cliente real
+  por acidente na primeira subida.
+- **Quem decide se o aviso sai é o BV2, não o n8n.** Com `ativo = false` não há POST e não
+  há linha em `notificacoes` — o n8n nem fica sabendo da transição. O n8n não tem `IF` de
+  decisão nem campo de texto: recebe a mensagem pronta e encaminha.
+- **O texto é um template com placeholders** (`{cliente}`, `{os}`, `{valor}`, `{status}`,
+  `{dataEntrada}`, `{dataConcluida}`, `{dataEntregue}`), resolvidos no `RenderizadorMensagem`.
+  O conjunto é fechado e vive só lá: é a mesma lista que valida o `PUT` e que o
+  `GET /notificacoes/placeholders` publica para o front. **Placeholder desconhecido é 422 no
+  `PUT`**, não erro no envio — sem isso o cliente receberia `{nome}` literal no WhatsApp.
+- **`notificacoes.conteudo` guarda o texto renderizado, não o template.** Congelar no envio é
+  o que impede que editar o template reescreva o histórico do que já saiu.
+- **Falha do n8n nunca quebra a troca de status.** O disparo é `AFTER_COMMIT`, o client
+  devolve `false` em vez de lançar, e a linha fica `FALHOU` com `tentativas` incrementado.
+  `N8N_WEBHOOK_URL` em branco desliga a integração e a aplicação sobe normalmente — é o que
+  permite rodar o projeto sem n8n configurado.
+- **Repetir o status atual não remanda mensagem**: o `return` idempotente de `transicionar`
+  sai antes do `publishEvent`.
+- Não há reenvio nem retry agendado. A coluna `tentativas` existe e é incrementada, mas hoje
+  sempre vale 1.
+
+Dois detalhes de implementação que **quebram em silêncio** se mexidos:
+
+- `processarTransicao` é `@Transactional(REQUIRES_NEW)`. Em `AFTER_COMMIT` não há mais
+  transação ativa: sem isso o `save` é descartado sem erro, o n8n recebe a chamada e o
+  `GET /notificacoes` volta vazio.
+- O `NotificacaoOsListener` é **classe separada** do `NotificacaoService`. Chamada interna
+  não passa pelo proxy do Spring, e o `REQUIRES_NEW` seria ignorado se o listener morasse
+  dentro do próprio service.
+
+Divergência deliberada de convenção: os templates usam `PUT /notificacoes/templates/{statusOs}`
+com corpo, e não o par `PATCH /{id}/ativar` + `/desativar` de cliente e serviço. Lá é ciclo
+de vida de cadastro; aqui é um formulário de configuração que o front lê e escreve inteiro.
+
+Configuração em `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_TOKEN` (vai no header `X-BV2-Token`, casa
+com a credencial *Header Auth* do node Webhook) e `N8N_WEBHOOK_TIMEOUT_SEGUNDOS`.
+
+**Do lado do n8n**, três nodes: Webhook → WhatsApp → Respond to Webhook. O BV2 marca
+`ENVIADO` no `200` do webhook, então o *Respond to Webhook* precisa ficar no **fim** do
+fluxo — em `Immediately` o `ENVIADO` significaria só "n8n recebeu". O payload leva a
+`mensagem` pronta **e** os campos estruturados: fora da janela de 24h a Cloud API recusa
+texto livre (erro `131047`) e exige template aprovado na Meta, e aí o n8n mapeia
+`cliente.nome` / `ordemServico.id` nas variáveis sem tocar no backend.
 
 ## Convenções do código
 

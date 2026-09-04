@@ -7,7 +7,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import dev.brunohm.bv2_projeto_software_uepg.domain.enums.StatusNotificacao;
-import dev.brunohm.bv2_projeto_software_uepg.domain.enums.TipoNotificacao;
+import dev.brunohm.bv2_projeto_software_uepg.domain.enums.StatusOs;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Enumerated;
@@ -25,6 +25,14 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Log de execucao de um envio de notificacao ao cliente da M2. Nao e
+ * configuracao: quem define o que sai e quando e o TemplateNotificacao. Aqui
+ * fica o registro do que foi tentado, com o texto exato que foi enviado.
+ *
+ * <p>
+ * Escrita apenas pelo sistema, no listener da transicao de status — a API so le.
+ */
 @Entity
 @Table(name = "notificacoes")
 @Getter
@@ -46,12 +54,21 @@ public class Notificacao {
     @JoinColumn(name = "id_cliente", nullable = false)
     private Cliente cliente;
 
+    /**
+     * Status para o qual a OS mudou e que disparou o envio. E um retrato, nao uma
+     * FK para templates_notificacao: o log precisa continuar legivel mesmo que o
+     * template seja reescrito ou removido depois.
+     */
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
-    @Column(name = "tipo", nullable = false, columnDefinition = "tipo_notificacao")
-    private TipoNotificacao tipo;
+    @Column(name = "status_os", nullable = false, columnDefinition = "status_os")
+    private StatusOs statusOs;
 
-    @Column(name = "conteudo", nullable = false, length = 500)
+    /**
+     * O texto ja renderizado que foi ao cliente, e nao o template. Congelar aqui e
+     * o que impede que editar o template reescreva o historico do que ja saiu.
+     */
+    @Column(name = "conteudo", nullable = false, length = 1000)
     private String conteudo;
 
     @Builder.Default
