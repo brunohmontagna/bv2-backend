@@ -1,5 +1,7 @@
 package dev.brunohm.bv2_projeto_software_uepg.service;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import dev.brunohm.bv2_projeto_software_uepg.domain.entity.Usuario;
 import dev.brunohm.bv2_projeto_software_uepg.domain.enums.RoleUsuario;
 import dev.brunohm.bv2_projeto_software_uepg.dto.PaginaResponse;
+import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.AlteracaoSenhaRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioAtualizacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioCriacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioResponse;
@@ -106,12 +109,42 @@ public class UsuarioService {
         usuario.setNome(request.nome());
         usuario.setEmail(request.email());
 
-        // Senha ausente significa "manter a atual", e nao "apagar".
-        if (request.senha() != null && !request.senha().isBlank()) {
-            usuario.setSenha(passwordEncoder.encode(request.senha()));
+        return usuarioRepository.save(usuario);
+    }
+
+    /**
+     * Troca a senha do proprio usuario, exigindo a atual como prova de posse.
+     *
+     * <p>
+     * Este e o <b>unico</b> caminho autenticado para trocar a senha: o PUT deixou de
+     * aceitar o campo justamente porque nao pedia a senha antiga — um token roubado
+     * bastava para tomar a conta.
+     *
+     * <p>
+     * Os tres 422 sao deliberados. Senha atual errada nao pode ser 401: o token e
+     * valido e o usuario <i>esta</i> autenticado, e interceptadores de front costumam
+     * deslogar em qualquer 401 — um erro de digitacao expulsaria o usuario da sessao.
+     */
+    @Transactional
+    public void alterarSenhaAutenticado(AlteracaoSenhaRequest request) {
+        Usuario usuario = usuarioAutenticado();
+
+        if (!passwordEncoder.matches(request.senhaAtual(), usuario.getSenha())) {
+            throw new RegraDeNegocioException("A senha atual esta incorreta.");
         }
 
-        return usuarioRepository.save(usuario);
+        if (!request.senhaNova().equals(request.senhaNovaConfirmacao())) {
+            throw new RegraDeNegocioException("A nova senha e a confirmacao nao conferem.");
+        }
+
+        if (passwordEncoder.matches(request.senhaNova(), usuario.getSenha())) {
+            throw new RegraDeNegocioException("A nova senha deve ser diferente da atual.");
+        }
+
+        usuario.setSenha(passwordEncoder.encode(request.senhaNova()));
+        // Truncado a segundos para casar com o iat do JWT. Ver Usuario.senhaAlteradaEm.
+        usuario.setSenhaAlteradaEm(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
+        usuarioRepository.save(usuario);
     }
 
     private Usuario usuarioAutenticado() {

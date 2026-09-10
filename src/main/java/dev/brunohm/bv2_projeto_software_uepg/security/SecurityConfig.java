@@ -41,6 +41,10 @@ public class SecurityConfig {
                 .sessionManagement(sessao -> sessao.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(req -> req
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
+                        // Recuperacao de senha: publicas por definicao — quem esqueceu
+                        // a senha nao tem como se autenticar para pedir a troca.
+                        .requestMatchers(HttpMethod.POST, "/auth/senha/esqueci").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/auth/senha/redefinir").permitAll()
                         .requestMatchers(ROTAS_PUBLICAS).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex

@@ -1,5 +1,6 @@
 package dev.brunohm.bv2_projeto_software_uepg.security;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -24,12 +25,16 @@ public class UsuarioAutenticado implements UserDetails {
     private final RoleUsuario role;
     private final boolean ativo;
 
+    /** Nulo = senha nunca trocada. Usado pelo JwtAuthFilter para derrubar sessoes. */
+    private final LocalDateTime senhaAlteradaEm;
+
     public UsuarioAutenticado(Usuario usuario) {
         this.id = usuario.getId();
         this.email = usuario.getEmail();
         this.senha = usuario.getSenha();
         this.role = usuario.getRole();
         this.ativo = Boolean.TRUE.equals(usuario.getAtivo());
+        this.senhaAlteradaEm = usuario.getSenhaAlteradaEm();
     }
 
     /** MASTER e o unico papel que enxerga o cadastro de usuarios do sistema. */

@@ -11,6 +11,7 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.JWTVerifier;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.interfaces.DecodedJWT;
 
 import dev.brunohm.bv2_projeto_software_uepg.domain.entity.Usuario;
 import jakarta.annotation.PostConstruct;
@@ -56,12 +57,21 @@ public class JwtService {
     }
 
     /**
-     * Devolve o e-mail (subject) do token, ou vazio se ele for invalido,
-     * expirado ou adulterado. Nao lanca: quem decide o que fazer e o filtro.
+     * Devolve o e-mail e o instante de emissao do token, ou vazio se ele for
+     * invalido, expirado ou adulterado. Nao lanca: quem decide o que fazer e o filtro.
+     *
+     * <p>
+     * O <b>emitidoEm</b> vem junto porque o filtro compara com o senhaAlteradaEm do
+     * usuario para derrubar sessoes antigas depois de uma troca de senha. Note que
+     * isso <i>nao exigiu claim novo</i>: o iat ja e emitido pelo gerarToken desde
+     * sempre — so nao estava sendo lido.
      */
-    public Optional<String> extrairEmail(String token) {
+    public Optional<TokenDecodificado> decodificar(String token) {
         try {
-            return Optional.ofNullable(verificador.verify(token).getSubject());
+            DecodedJWT decodificado = verificador.verify(token);
+            return Optional.of(new TokenDecodificado(
+                    decodificado.getSubject(),
+                    decodificado.getIssuedAtAsInstant()));
         } catch (JWTVerificationException ex) {
             log.debug("Token JWT rejeitado: {}", ex.getMessage());
             return Optional.empty();
@@ -69,5 +79,9 @@ public class JwtService {
     }
 
     public record TokenGerado(String token, Instant expiraEm) {
+    }
+
+    /** O iat vem com precisao de segundos, como manda a RFC 7519. */
+    public record TokenDecodificado(String email, Instant emitidoEm) {
     }
 }

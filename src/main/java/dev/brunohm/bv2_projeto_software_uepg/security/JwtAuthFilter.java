@@ -1,6 +1,9 @@
 package dev.brunohm.bv2_projeto_software_uepg.security;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -14,6 +17,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import dev.brunohm.bv2_projeto_software_uepg.security.JwtService.TokenDecodificado;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -38,13 +42,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String token = extrairToken(request);
 
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            jwtService.extrairEmail(token).ifPresent(email -> autenticar(email, request));
+            jwtService.decodificar(token).ifPresent(decodificado -> autenticar(decodificado, request));
         }
 
         filterChain.doFilter(request, response);
     }
 
-    private void autenticar(String email, HttpServletRequest request) {
+    private void autenticar(TokenDecodificado decodificado, HttpServletRequest request) {
+        String email = decodificado.email();
         try {
             UserDetails usuario = usuarioDetailsService.loadUserByUsername(email);
 
@@ -52,6 +57,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // continuaria aceito ate expirar (jwt.expiracao-minutos, 120 por padrao).
             if (!usuario.isEnabled()) {
                 logger.debug("Token de usuario desativado: " + email);
+                return;
+            }
+
+            // Trocar a senha derruba as sessoes abertas: sem isto, quem roubou o
+            // token continuaria dentro pelos 120 minutos de validade justamente no
+            // cenario em que a vitima troca a senha as pressas.
+            if (senhaTrocadaDepoisDe(usuario, decodificado.emitidoEm())) {
+                logger.debug("Token anterior a ultima troca de senha: " + email);
                 return;
             }
 
@@ -63,6 +76,25 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // Token assinado por nos, mas o usuario foi removido depois. Segue sem autenticar.
             logger.debug("Token valido para usuario inexistente: " + email);
         }
+    }
+
+    /**
+     * Compara o iat do token com o senhaAlteradaEm do usuario, ambos em segundos.
+     *
+     * <p>
+     * Nulo significa que a senha nunca foi trocada, e o token passa. A comparacao e
+     * estritamente "antes": um token emitido no mesmo segundo da troca sobrevive —
+     * janela irrelevante, ja que a troca de senha nao emite token novo.
+     */
+    private boolean senhaTrocadaDepoisDe(UserDetails usuario, Instant emitidoEm) {
+        if (!(usuario instanceof UsuarioAutenticado autenticado)) {
+            return false;
+        }
+        LocalDateTime senhaAlteradaEm = autenticado.getSenhaAlteradaEm();
+        if (senhaAlteradaEm == null || emitidoEm == null) {
+            return false;
+        }
+        return emitidoEm.isBefore(senhaAlteradaEm.atZone(ZoneId.systemDefault()).toInstant());
     }
 
     private String extrairToken(HttpServletRequest request) {

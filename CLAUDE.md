@@ -47,7 +47,8 @@ clientes *dela*.
 | Banco | PostgreSQL 18, migrations com Flyway |
 | Auth | JWT (HMAC256, biblioteca `com.auth0:java-jwt`) |
 | Docs | springdoc-openapi / Swagger UI |
-| Automações | n8n 2.x (notificações — ainda não implementado) |
+| Automações | n8n 2.x (webhook de saída que repassa a notificação ao WhatsApp) |
+| E-mail | Spring Mail (`suporte@bv2.tech`, SMTP da Hostinger) |
 | Frontend | React 19, TypeScript 6, Vite 8 (ainda não iniciado neste repositório) |
 
 Este repositório contém **apenas o backend** por enquanto. O frontend virá depois (ou em
@@ -60,6 +61,7 @@ As APIs REST estão finalizadas e já refatoradas para o modelo de papéis corre
 | Recurso | Endpoint base | Situação |
 |---|---|---|
 | Autenticação | `/auth/login` | pronto |
+| Senha | `/auth/senha/*`, `/usuarios/eu/senha` | pronto (troca autenticada + recuperação por e-mail) |
 | Clientes | `/clientes` | pronto |
 | Marcas | `/marcas` | pronto |
 | Serviços | `/servicos` | pronto |
@@ -67,7 +69,7 @@ As APIs REST estão finalizadas e já refatoradas para o modelo de papéis corre
 | Ordens de serviço + itens | `/ordens-servico` | pronto |
 | Usuários | `/usuarios` | pronto (MASTER; `/usuarios/eu` para qualquer autenticado) |
 | Painel | `/painel` | pronto (dashboard agregado, somente leitura) |
-| Notificações | — | tabela e entidade criadas (V8), sem endpoints e sem integração n8n |
+| Notificações | `/notificacoes` | pronto (disparo automático na troca de status, via n8n) |
 
 Não há testes automatizados além do `contextLoads` gerado pelo Spring Initializr. A
 validação hoje é manual, via Swagger UI e a coleção Postman em `postman/`.
@@ -85,6 +87,33 @@ com validade em `expiraEm`.
 O MASTER é semeado pela migration `V9`, então reaparece sozinho sempre que o banco é
 recriado do zero. O ADMIN não é semeado: crie-o com `POST /usuarios` autenticado como
 MASTER.
+
+Essas duas senhas ficam aqui em texto claro de propósito: são de banco local semeado e
+descartável. **Credencial de serviço externo não entra neste arquivo** — ele é versionado.
+
+### Credenciais de serviço (fora do repositório)
+
+Valores reais vivem só no `.env`, que está no `.gitignore`. O `.env.example` versiona as
+chaves, nunca os valores. Abaixo, onde encontrar cada uma:
+
+| Variável | O que é | Onde obter |
+|---|---|---|
+| `MAIL_USERNAME` | `suporte@bv2.tech` | fixo |
+| `MAIL_PASSWORD` | senha da **caixa postal**, não a da conta hPanel — a Hostinger não usa App Password como o Gmail | hPanel → E-mails → Contas de e-mail → `suporte@bv2.tech` → Alterar senha |
+| `N8N_WEBHOOK_URL` / `_TOKEN` | webhook que repassa a notificação ao WhatsApp | painel do n8n, no node Webhook |
+| `DB_PASSWORD` | Postgres local | definida na criação do volume Docker |
+| `JWT_SECRET` | assinatura dos tokens | qualquer segredo com 32+ caracteres |
+
+Ambiente local: **o container do Postgres não usa a 5432.** Há um PostgreSQL nativo
+instalado no host ocupando essa porta, então o container é publicado na **5433** e o
+`DB_PORT` aponta para lá. Suba com:
+
+```bash
+POSTGRES_PORT=5433 docker compose -p migrations-projeto-bv2 \
+  -f infra/docker-compose.dev.yml up -d
+```
+
+Para voltar à 5432, `sudo systemctl disable --now postgresql` desliga o nativo.
 
 ## Comandos
 
@@ -114,10 +143,11 @@ domain/       entity/ (JPA) e enums/
 dto/          records de request/response, um subpacote por recurso
 security/     JWT, UserDetails, SecurityConfig, tradução de 401/403
 exception/    exceções de negócio + GlobalExceptionHandler (RFC 7807)
+integration/  saída para fora da aplicação (webhook do n8n, envio de e-mail)
 config/       OpenApiConfig
 ```
 
-Migrations em `src/main/resources/db/migration` (`V1` … `V17`).
+Migrations em `src/main/resources/db/migration` (`V1` … `V19`).
 
 ## Modelo de dados
 
@@ -127,6 +157,8 @@ usuarios                        (MASTER / ADMIN — quem loga; ilha isolada)
 clientes ──┬── (N) equipamentos ── (N:1) marcas
            ├── (N) ordens_servico ── (N) itens_os ──┬── equipamento
            └── (N) notificacoes                     └── servicos
+
+templates_notificacao           (configuração da notificação; PK = status_os)
 ```
 
 `usuarios` **não se relaciona com nada**. Autenticação e domínio são grafos separados.
@@ -138,11 +170,15 @@ clientes ──┬── (N) equipamentos ── (N:1) marcas
 - **equipamentos** — pertencem a um cliente e a uma marca.
 - **ordens_servico** — pertencem a um cliente; `status`, três datas, `valor_total`.
 - **itens_os** — composição da OS: `(ordem_servico, equipamento, servico)`, chave única.
-- **notificacoes** — mensagens a enviar ao cliente da M2; `tipo`, `status`, `tentativas`.
+- **notificacoes** — log de envios ao cliente da M2: o texto que saiu, `status_os` que
+  disparou, `status` do envio e `tentativas`. Escrita só pelo sistema.
+- **templates_notificacao** — configuração: um texto e uma flag `ativo` por status de OS.
 
 Todas as FKs são `ON DELETE RESTRICT`: nada com histórico vinculado é apagado por engano.
-Os enums são tipos nativos do Postgres (`status_os`, `role_usuario`, `tipo_notificacao`,
-`status_notificacao`), mapeados com `@JdbcTypeCode(SqlTypes.NAMED_ENUM)`.
+Os enums são tipos nativos do Postgres (`status_os`, `role_usuario`,
+`status_notificacao`), mapeados com `@JdbcTypeCode(SqlTypes.NAMED_ENUM)`. O
+`tipo_notificacao` existiu entre a `V8` e a `V18`: as notificações passaram a ser chaveadas
+pelo próprio `status_os`, e um segundo enum paralelo só criaria duas fontes de verdade.
 
 O vínculo `clientes.id_usuario` foi removido na `V12`; a flag `ativo` de `usuarios` veio na
 `V13`.
@@ -184,7 +220,82 @@ Consequências, todas importantes:
 - **Desativar vale na hora.** `isEnabled()` barra o login, e o `JwtAuthFilter` recusa o
   token já emitido a cada requisição — sem isso o desativado continuaria entrando pelos
   120 minutos de validade do JWT.
-- Senha ausente no `PUT` significa "manter a atual", não "apagar".
+- **O `PUT` não troca senha.** O campo já existiu ali e foi removido: mudava a senha sem
+  exigir a atual, então um token roubado bastava para tomar a conta. Ver a seção Senha.
+
+### Senha
+
+Dois caminhos, os dois com prova de posse. **Não existe terceiro** — em particular, nem o
+MASTER redefine a senha de outro usuário: quem esqueceu usa a recuperação como todo mundo.
+
+| Situação | Rota | Prova |
+|---|---|---|
+| Sabe a senha e quer trocar | `PUT /usuarios/eu/senha` | informa a senha atual |
+| Esqueceu a senha | `POST /auth/senha/esqueci` → e-mail → `POST /auth/senha/redefinir` | acessa a caixa postal |
+
+As duas rotas de `/auth/senha` são **públicas** — quem esqueceu a senha não tem como se
+autenticar para pedir a troca.
+
+**Senha atual errada responde 422, não 401.** O 401 seria errado (o token é válido, o
+usuário *está* autenticado) e perigoso na prática: interceptador de front costuma deslogar
+em qualquer 401, então um erro de digitação expulsaria o usuário da sessão.
+
+**Trocar a senha derruba as sessões abertas.** `usuarios.senha_alterada_em` (V19) guarda a
+marca e o `JwtAuthFilter` recusa token cujo `iat` seja anterior a ela. Não foi preciso claim
+novo: o `iat` já era emitido, só não era lido. Dois detalhes que quebram em silêncio se
+mexidos:
+
+- **`senha_alterada_em` é gravado truncado a segundos.** O `iat` do JWT tem precisão de
+  segundos e a coluna guarda microssegundos — sem truncar, a comparação erraria por
+  arredondamento e derrubaria sessões legítimas de forma intermitente.
+- **A comparação é estritamente "antes".** Token emitido no mesmo segundo da troca
+  sobrevive. Janela de 1 segundo aceita de propósito: a alternativa (`<=`) rejeitaria o
+  login imediatamente seguinte à troca, que é um problema real de uso contra um risco
+  teórico. `NULL` significa "nunca trocou" e o token passa.
+
+**O fluxo de recuperação não revela quem tem conta.** `POST /auth/senha/esqueci` responde
+**202 com corpo vazio** nos três casos — e-mail cadastrado, não cadastrado ou de usuário
+inativo. É uma inconsistência deliberada com `POST /usuarios`, que devolve 409 dizendo que o
+e-mail já existe: lá quem pergunta é um MASTER autenticado, aqui é um anônimo. Pelo mesmo
+motivo, **todos os motivos de recusa da redefinição usam a mesma mensagem** — distinguir
+"não existe" de "expirou" contaria ao atacante que aquele token um dia existiu.
+
+Sobre o token de recuperação (`tokens_recuperacao_senha`, V19):
+
+- **Só o SHA-256 vai para o banco**, nunca o token. Vazamento do banco não pode virar tomada
+  de contas. SHA-256 e não BCrypt por dois motivos: o token já nasce com 256 bits de
+  `SecureRandom` (key stretching não acrescenta nada) e precisa ser **buscável por
+  igualdade**, o que o sal do BCrypt impediria sem varrer a tabela inteira.
+- **Uso único e prazo curto** (30 min, configurável). Redimir marca `usado_em` e invalida os
+  demais pendentes do usuário; pedir um link novo também invalida os anteriores. Com dois
+  e-mails na caixa de entrada, só o último funciona.
+- `usado_em` nulo = pendente. O histórico fica, então dá para auditar quantos links foram
+  pedidos e quais viraram troca de senha.
+
+**Limitações aceitas** — são escopo, não descuido:
+
+- **Sem rate limiting.** Nada impede pedir mil links. A invalidação em cascata mitiga em
+  parte, mas ainda dá para inundar a caixa de entrada de alguém e estourar a cota de envio
+  da Hostinger, derrubando o e-mail para todos.
+- **Timing attack residual.** A resposta é idêntica, mas o caminho "e-mail existe" faz mais
+  trabalho (gera token, grava, envia) e demora mais.
+- **Token na query string** entra no histórico do navegador e pode vazar por `Referer`. É a
+  prática corrente; a vida curta e o uso único são a mitigação.
+
+**Envio de e-mail** (`integration/EmailService`): síncrono, sem `@Async` — o projeto não tem
+`@EnableAsync` e a notificação por WhatsApp deliberadamente não abriu esse precedente. Os
+timeouts SMTP são explícitos (5s) porque sem eles um servidor que aceita a conexão e não
+responde prende a thread da requisição indefinidamente. **`spring.mail.username` em branco
+desliga o envio**: a aplicação sobe, o token continua sendo gravado e só o e-mail não sai —
+mesmo contrato do `N8nWebhookClient` com a URL vazia. O `EmailService` nunca lança e **nunca
+loga o token nem o link**.
+
+Configuração da Hostinger: `MAIL_USERNAME` é o endereço completo e `MAIL_PASSWORD` é a senha
+da caixa postal (não há App Password como no Gmail). A porta **465 é SSL implícito**
+(`MAIL_SSL=true`, `MAIL_STARTTLS=false`); a 587 é o inverso. Ligar o modo errado para a porta
+trava a conexão até o timeout com `EOFException` e nenhuma mensagem útil. O `MAIL_FROM`
+precisa ser a mesma conta que autentica, senão o servidor recusa com "sender address
+rejected"; só o nome de exibição é livre.
 
 ### Ordem de serviço
 
@@ -328,10 +439,67 @@ e ADMIN por igual, sem `@PreAuthorize`.
 
 ### Notificações
 
-Tabela e entidade existem (`PRAZO_INICIADO`, `PRAZO_ENCERRADO`, `PERSONALIZADO`; status
-`PENDENTE` / `ENVIADO` / `FALHOU`, com contador de `tentativas`), mas **não há regra de
-negócio implementada** — nem endpoints, nem disparo, nem integração com o n8n. Vão para o
-cliente da M2, não para um usuário do sistema. A ser definido.
+Quando a OS muda de status, o cliente da M2 recebe um WhatsApp. Vão para o **cliente da
+M2**, nunca para um usuário do sistema. O fluxo é de mão única — o BV2 é quem troca o
+status, então ele mesmo chama o n8n; não há polling nem rota de entrada:
+
+```
+transicionar() ──commit──> evento AFTER_COMMIT ──> POST no webhook do n8n ──> WhatsApp
+```
+
+**Duas tabelas, dois papéis.** `templates_notificacao` é configuração (o que a M2 edita);
+`notificacoes` é log de execução (o que o sistema escreveu). A API **edita a primeira e só
+lê a segunda** — não há `POST` nem `DELETE` de notificação.
+
+- **A chave é o próprio `StatusOs`**, não um enum de "tipo de notificação". O que dispara o
+  envio é a transição da OS; um segundo enum paralelo criaria duas fontes de verdade. Foi o
+  que motivou dropar o `tipo_notificacao` na `V18`.
+- **Notificam `CONCLUIDA`, `ENTREGUE` e `CANCELADA`**, as três linhas semeadas na `V18`.
+  `EM_ANDAMENTO` não notifica por não ter linha — não por um `if` no código. Habilitar
+  abertura de OS um dia é um `INSERT`, não uma migration de enum.
+- **Nascem todas desligadas** (`ativo = false`): ninguém manda WhatsApp para cliente real
+  por acidente na primeira subida.
+- **Quem decide se o aviso sai é o BV2, não o n8n.** Com `ativo = false` não há POST e não
+  há linha em `notificacoes` — o n8n nem fica sabendo da transição. O n8n não tem `IF` de
+  decisão nem campo de texto: recebe a mensagem pronta e encaminha.
+- **O texto é um template com placeholders** (`{cliente}`, `{os}`, `{valor}`, `{status}`,
+  `{dataEntrada}`, `{dataConcluida}`, `{dataEntregue}`), resolvidos no `RenderizadorMensagem`.
+  O conjunto é fechado e vive só lá: é a mesma lista que valida o `PUT` e que o
+  `GET /notificacoes/placeholders` publica para o front. **Placeholder desconhecido é 422 no
+  `PUT`**, não erro no envio — sem isso o cliente receberia `{nome}` literal no WhatsApp.
+- **`notificacoes.conteudo` guarda o texto renderizado, não o template.** Congelar no envio é
+  o que impede que editar o template reescreva o histórico do que já saiu.
+- **Falha do n8n nunca quebra a troca de status.** O disparo é `AFTER_COMMIT`, o client
+  devolve `false` em vez de lançar, e a linha fica `FALHOU` com `tentativas` incrementado.
+  `N8N_WEBHOOK_URL` em branco desliga a integração e a aplicação sobe normalmente — é o que
+  permite rodar o projeto sem n8n configurado.
+- **Repetir o status atual não remanda mensagem**: o `return` idempotente de `transicionar`
+  sai antes do `publishEvent`.
+- Não há reenvio nem retry agendado. A coluna `tentativas` existe e é incrementada, mas hoje
+  sempre vale 1.
+
+Dois detalhes de implementação que **quebram em silêncio** se mexidos:
+
+- `processarTransicao` é `@Transactional(REQUIRES_NEW)`. Em `AFTER_COMMIT` não há mais
+  transação ativa: sem isso o `save` é descartado sem erro, o n8n recebe a chamada e o
+  `GET /notificacoes` volta vazio.
+- O `NotificacaoOsListener` é **classe separada** do `NotificacaoService`. Chamada interna
+  não passa pelo proxy do Spring, e o `REQUIRES_NEW` seria ignorado se o listener morasse
+  dentro do próprio service.
+
+Divergência deliberada de convenção: os templates usam `PUT /notificacoes/templates/{statusOs}`
+com corpo, e não o par `PATCH /{id}/ativar` + `/desativar` de cliente e serviço. Lá é ciclo
+de vida de cadastro; aqui é um formulário de configuração que o front lê e escreve inteiro.
+
+Configuração em `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_TOKEN` (vai no header `X-BV2-Token`, casa
+com a credencial *Header Auth* do node Webhook) e `N8N_WEBHOOK_TIMEOUT_SEGUNDOS`.
+
+**Do lado do n8n**, três nodes: Webhook → WhatsApp → Respond to Webhook. O BV2 marca
+`ENVIADO` no `200` do webhook, então o *Respond to Webhook* precisa ficar no **fim** do
+fluxo — em `Immediately` o `ENVIADO` significaria só "n8n recebeu". O payload leva a
+`mensagem` pronta **e** os campos estruturados: fora da janela de 24h a Cloud API recusa
+texto livre (erro `131047`) e exige template aprovado na Meta, e aí o n8n mapeia
+`cliente.nome` / `ordemServico.id` nas variáveis sem tocar no backend.
 
 ## Convenções do código
 

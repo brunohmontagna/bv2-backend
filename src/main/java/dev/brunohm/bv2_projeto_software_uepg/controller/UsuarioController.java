@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import dev.brunohm.bv2_projeto_software_uepg.dto.PaginaResponse;
+import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.AlteracaoSenhaRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioAtualizacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioCriacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioResponse;
@@ -60,7 +61,7 @@ public class UsuarioController {
     }
 
     @PutMapping("/eu")
-    @Operation(summary = "Atualiza nome, e-mail e senha do proprio usuario (papel e situacao sao imutaveis)")
+    @Operation(summary = "Atualiza nome e e-mail do proprio usuario (papel, situacao e senha nao entram aqui)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Usuario atualizado"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),
@@ -70,6 +71,19 @@ public class UsuarioController {
     public ResponseEntity<UsuarioResponse> atualizarAutenticado(
             @Valid @RequestBody UsuarioAtualizacaoRequest request) {
         return ResponseEntity.ok(usuarioService.atualizarAutenticado(request));
+    }
+
+    @PutMapping("/eu/senha")
+    @Operation(summary = "Troca a senha do proprio usuario, exigindo a senha atual")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Senha alterada. Os tokens emitidos antes deixam de valer"),
+            @ApiResponse(responseCode = "400", description = "Dados invalidos"),
+            @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
+            @ApiResponse(responseCode = "422", description = "Senha atual incorreta, confirmacao divergente ou nova senha igual a atual")
+    })
+    public ResponseEntity<Void> alterarSenha(@Valid @RequestBody AlteracaoSenhaRequest request) {
+        usuarioService.alterarSenhaAutenticado(request);
+        return ResponseEntity.noContent().build();
     }
 
     // ------------------------------------------------------------------
@@ -125,7 +139,7 @@ public class UsuarioController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('MASTER')")
-    @Operation(summary = "Atualiza nome, e-mail e senha de um usuario (papel e situacao sao imutaveis)")
+    @Operation(summary = "Atualiza nome e e-mail de um usuario (papel, situacao e senha nao entram aqui)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Usuario atualizado"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),

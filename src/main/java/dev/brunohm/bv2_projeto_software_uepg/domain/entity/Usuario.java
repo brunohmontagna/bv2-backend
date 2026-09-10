@@ -53,6 +53,18 @@ public class Usuario {
     @Column(name = "ativo", nullable = false)
     private Boolean ativo = true;
 
+    /**
+     * Quando a senha foi trocada pela ultima vez. Nulo = nunca trocou.
+     *
+     * <p>
+     * Serve para derrubar sessoes: o JwtAuthFilter recusa token cujo iat seja
+     * anterior a esta marca. Por isso e gravado <b>truncado a segundos</b> — o iat
+     * do JWT tem precisao de segundos e a coluna guarda microssegundos; sem truncar
+     * a comparacao erraria por arredondamento.
+     */
+    @Column(name = "senha_alterada_em")
+    private LocalDateTime senhaAlteradaEm;
+
     @CreationTimestamp
     @Column(name = "criado_em", nullable = false, updatable = false)
     private LocalDateTime criadoEm;
