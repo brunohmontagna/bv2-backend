@@ -5656,6 +5656,767 @@
     }
    ],
    "description": "Notificacao automatica por WhatsApp na troca de status da OS, via webhook do n8n.\n\n**Fluxo:** o BV2 troca o status, publica um evento AFTER_COMMIT e faz um POST no webhook do n8n, que repassa ao WhatsApp. Nao ha polling nem rota de entrada.\n\n**Dois recursos, dois papeis:** `templates_notificacao` e configuracao (a M2 edita: texto + liga/desliga, um por status); `notificacoes` e log de execucao (so leitura pela API — nao existe POST nem DELETE).\n\n**Rode a pasta inteira, na ordem.** Os requests 1-5 montam as fixtures e o ultimo PUT devolve o template ao estado desligado do seed.\n\n**Esta pasta nao se limpa**, ao contrario das demais. Uma OS que gerou notificacao nao pode ser excluida (FK `ON DELETE RESTRICT`), e isso trava toda a cadeia de fixtures. E o comportamento desejado: historico de comunicacao com o cliente nao se apaga.\n\n**Sem n8n configurado** (`N8N_WEBHOOK_URL` em branco) os testes passam do mesmo jeito: a notificacao fica `FALHOU` em vez de `ENVIADO`, e a transicao de status continua respondendo 200."
+  },
+  {
+   "name": "12. Senha",
+   "item": [
+    {
+     "name": "Criar usuario descartavel (201)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios"
+       ]
+      },
+      "description": "**Rode a pasta inteira, na ordem.** Os testes trocam a senha de verdade, entao usam um usuario descartavel — rodar contra o MASTER quebraria o `{{masterSenha}}` e, junto com ele, as outras onze pastas.\n\nO e-mail leva um timestamp no pre-request, para a pasta poder rodar quantas vezes quiser sem colidir no 409 de e-mail duplicado.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"nome\": \"Teste Senha\",\n    \"email\": \"{{senhaUsuarioEmail}}\",\n    \"senha\": \"senhaAntiga1\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.collectionVariables.set('senhaUsuarioEmail', 'teste.senha+' + Date.now() + '@bv2.tech');"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', () => pm.response.to.have.status(201));",
+         "pm.collectionVariables.set('senhaUsuarioId', pm.response.json().id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Login do descartavel (200)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/auth/login",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "auth",
+        "login"
+       ]
+      },
+      "description": "Guarda o token em `{{tokenSenha}}`. Ele e usado adiante para provar que **trocar a senha derruba a sessao**: este mesmo token precisa parar de funcionar depois do 204.",
+      "auth": {
+       "type": "noauth"
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"email\": \"{{senhaUsuarioEmail}}\",\n    \"senha\": \"senhaAntiga1\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "pm.collectionVariables.set('tokenSenha', pm.response.json().token);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "O PUT ignora o campo senha (200)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu"
+       ]
+      },
+      "description": "O `senha` no corpo e resto de um contrato antigo: o `PUT` trocava a senha **sem exigir a atual**, entao um token roubado bastava para tomar a conta. O campo saiu do DTO — o JSON abaixo passa, mas o campo e simplesmente ignorado. O request seguinte prova que a senha nao mudou.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenSenha}}",
+         "type": "string"
+        }
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"nome\": \"Teste Senha\",\n    \"email\": \"{{senhaUsuarioEmail}}\",\n    \"senha\": \"invadida999\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "pm.test('a resposta nunca expoe senha', () => pm.expect(pm.response.json()).to.not.have.property('senha'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Login com a senha injetada pelo PUT (401)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/auth/login",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "auth",
+        "login"
+       ]
+      },
+      "description": "**O teste que prova que o buraco foi fechado.** Se este login passasse, o `PUT` ainda trocaria senha sem pedir a atual e o endpoint de troca autenticada seria decorativo.",
+      "auth": {
+       "type": "noauth"
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"email\": \"{{senhaUsuarioEmail}}\",\n    \"senha\": \"invadida999\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Senha atual incorreta (422)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu/senha",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu",
+        "senha"
+       ]
+      },
+      "description": "**422 e nao 401, de proposito.** O token e valido e o usuario *esta* autenticado — o que falhou foi uma regra de negocio. Um 401 aqui seria pior que errado: interceptador de front costuma deslogar em qualquer 401, entao um erro de digitacao na senha atual expulsaria o usuario da sessao.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenSenha}}",
+         "type": "string"
+        }
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"senhaAtual\": \"chuteErrado1\",\n    \"senhaNova\": \"senhaNova123\",\n    \"senhaNovaConfirmacao\": \"senhaNova123\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+         "pm.test('nao e 401: o front nao pode deslogar por erro de digitacao', () => {",
+         "    pm.expect(pm.response.code).to.not.eql(401);",
+         "});",
+         "pm.test('diz o que houve', () => pm.expect(pm.response.json().detail).to.include('senha atual'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Confirmacao divergente (422)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu/senha",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu",
+        "senha"
+       ]
+      },
+      "description": "A confirmacao e conferida no servidor mesmo sendo um campo de interface: a regra nao pode depender de o front conferir.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenSenha}}",
+         "type": "string"
+        }
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"senhaAtual\": \"senhaAntiga1\",\n    \"senhaNova\": \"senhaNova123\",\n    \"senhaNovaConfirmacao\": \"digiteiOutra1\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+         "pm.test('aponta a confirmacao', () => pm.expect(pm.response.json().detail).to.include('confirmacao'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Nova senha igual a atual (422)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu/senha",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu",
+        "senha"
+       ]
+      },
+      "description": "Trocar a senha pela mesma nao e troca. Barrar aqui evita o pior caso: o usuario acha que rotacionou a senha depois de um vazamento e continua com a senha vazada.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenSenha}}",
+         "type": "string"
+        }
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"senhaAtual\": \"senhaAntiga1\",\n    \"senhaNova\": \"senhaAntiga1\",\n    \"senhaNovaConfirmacao\": \"senhaAntiga1\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+         "pm.test('exige senha diferente', () => pm.expect(pm.response.json().detail).to.include('diferente'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Trocar a senha (204)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu/senha",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu",
+        "senha"
+       ]
+      },
+      "description": "Caminho feliz. **204 sem corpo e sem token novo**: a sessao atual morre junto (o `iat` dela passa a ser anterior ao `senha_alterada_em`), entao o front precisa mandar o usuario logar de novo — que e o comportamento esperado ao trocar senha.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenSenha}}",
+         "type": "string"
+        }
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"senhaAtual\": \"senhaAntiga1\",\n    \"senhaNova\": \"senhaNova123\",\n    \"senhaNovaConfirmacao\": \"senhaNova123\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('204 No Content', () => pm.response.to.have.status(204));",
+         "pm.test('sem corpo, e sem token novo', () => pm.expect(pm.response.text()).to.be.empty);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "A sessao anterior foi derrubada (401)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu"
+       ]
+      },
+      "description": "Usa **o mesmo `{{tokenSenha}}`** que funcionava tres requests atras. Sem esta checagem, quem roubou o token continuaria dentro pelos 120 minutos de validade — justamente no cenario em que a vitima troca a senha as pressas.\n\nNao foi preciso claim novo no JWT: o `iat` ja era emitido, so nao era lido. O `JwtAuthFilter` compara com `usuarios.senha_alterada_em`.\n\n**Se este teste falhar com 200 na primeira execucao, olhe o relogio antes de suspeitar do codigo.** A comparacao e estritamente \"antes\", com precisao de segundos: token emitido no *mesmo segundo* da troca sobrevive. Rodando a pasta em rajada isso acontece. E janela aceita de proposito — a alternativa rejeitaria o login imediatamente seguinte a troca.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenSenha}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Login com a senha nova (200)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/auth/login",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "auth",
+        "login"
+       ]
+      },
+      "description": "Fecha o endpoint 1: a senha antiga nao entra mais e a nova entra. Renova o `{{tokenSenha}}` para a limpeza no fim da pasta.",
+      "auth": {
+       "type": "noauth"
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"email\": \"{{senhaUsuarioEmail}}\",\n    \"senha\": \"senhaNova123\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "pm.collectionVariables.set('tokenSenha', pm.response.json().token);",
+         "",
+         "pm.sendRequest({",
+         "    url: pm.collectionVariables.get('baseUrl') + '/auth/login',",
+         "    method: 'POST',",
+         "    header: { 'Content-Type': 'application/json' },",
+         "    body: { mode: 'raw', raw: JSON.stringify({",
+         "        email: pm.collectionVariables.get('senhaUsuarioEmail'),",
+         "        senha: 'senhaAntiga1'",
+         "    }) }",
+         "}, (err, res) => {",
+         "    pm.test('a senha antiga deixou de valer', () => {",
+         "        pm.expect(err).to.be.null;",
+         "        pm.expect(res.code).to.eql(401);",
+         "    });",
+         "});"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Esqueci a senha - e-mail cadastrado (202)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/auth/senha/esqueci",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "auth",
+        "senha",
+        "esqueci"
+       ]
+      },
+      "description": "Rota **publica** — quem esqueceu a senha nao tem como se autenticar para pedir a troca.\n\nO teste compara esta resposta com a de um e-mail que nao existe, disparada aqui mesmo: as duas precisam ser byte a byte iguais. Se divergissem, o endpoint viraria um oraculo para descobrir quem tem conta no sistema.",
+      "auth": {
+       "type": "noauth"
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"email\": \"{{senhaUsuarioEmail}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+         "pm.test('corpo vazio', () => pm.expect(pm.response.text()).to.be.empty);",
+         "const meu = { code: pm.response.code, body: pm.response.text() };",
+         "",
+         "pm.sendRequest({",
+         "    url: pm.collectionVariables.get('baseUrl') + '/auth/senha/esqueci',",
+         "    method: 'POST',",
+         "    header: { 'Content-Type': 'application/json' },",
+         "    body: { mode: 'raw', raw: JSON.stringify({ email: 'nao.existe.mesmo@bv2.tech' }) }",
+         "}, (err, res) => {",
+         "    pm.test('e-mail inexistente responde exatamente igual', () => {",
+         "        pm.expect(err).to.be.null;",
+         "        pm.expect(res.code).to.eql(meu.code);",
+         "        pm.expect(res.text()).to.eql(meu.body);",
+         "    });",
+         "});"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Redefinir com token invalido (422)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/auth/senha/redefinir",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "auth",
+        "senha",
+        "redefinir"
+       ]
+      },
+      "description": "Guarda a mensagem em `{{mensagemTokenInvalido}}`. **Token inexistente, ja usado, expirado ou de usuario inativo devolvem exatamente este mesmo texto** — distinguir \"nao existe\" de \"expirou\" contaria ao atacante que aquele token um dia existiu.",
+      "auth": {
+       "type": "noauth"
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"token\": \"esteTokenNuncaExistiu\",\n    \"senhaNova\": \"recuperada123\",\n    \"senhaNovaConfirmacao\": \"recuperada123\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+         "const d = pm.response.json().detail;",
+         "pm.collectionVariables.set('mensagemTokenInvalido', d);",
+         "pm.test('mensagem generica, sem dizer o motivo real', () => {",
+         "    pm.expect(d).to.include('invalido ou expirado');",
+         "});"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Redefinir com o token do e-mail (204) - COLE O TOKEN",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/auth/senha/redefinir",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "auth",
+        "senha",
+        "redefinir"
+       ]
+      },
+      "description": "**Unico request manual da pasta.** O Postman nao le caixa de e-mail, entao o token precisa ser colado na variavel de colecao `{{tokenRecuperacao}}`.\n\nComo obter: abra o e-mail que saiu no request \"Esqueci a senha\", copie o trecho depois de `?token=` do link e cole em `{{tokenRecuperacao}}`. Em desenvolvimento, o jeito rapido e um SMTP de mentira (Mailpit em localhost:1025, caixa em http://localhost:8025).\n\nRodar a pasta inteira sem colar o token deixa este request em vermelho — e esperado.\n\nRedefinir tambem derruba as sessoes abertas e queima **todos** os links pendentes do usuario, nao so este.",
+      "auth": {
+       "type": "noauth"
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"token\": \"{{tokenRecuperacao}}\",\n    \"senhaNova\": \"recuperada123\",\n    \"senhaNovaConfirmacao\": \"recuperada123\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const tk = pm.collectionVariables.get('tokenRecuperacao');",
+         "",
+         "if (!tk || tk === '{{tokenRecuperacao}}') {",
+         "    pm.test.skip('SEM TOKEN: cole o token do e-mail em {{tokenRecuperacao}}', () => {});",
+         "} else {",
+         "    pm.test('204 No Content', () => pm.response.to.have.status(204));",
+         "",
+         "    pm.sendRequest({",
+         "        url: pm.collectionVariables.get('baseUrl') + '/auth/senha/redefinir',",
+         "        method: 'POST',",
+         "        header: { 'Content-Type': 'application/json' },",
+         "        body: { mode: 'raw', raw: JSON.stringify({",
+         "            token: tk, senhaNova: 'outraVez12345', senhaNovaConfirmacao: 'outraVez12345'",
+         "        }) }",
+         "    }, (err, res) => {",
+         "        pm.test('uso unico: o mesmo token nao serve duas vezes', () => {",
+         "            pm.expect(err).to.be.null;",
+         "            pm.expect(res.code).to.eql(422);",
+         "        });",
+         "        pm.test('e recusa com a mesma mensagem de token inexistente', () => {",
+         "            pm.expect(res.json().detail).to.eql(pm.collectionVariables.get('mensagemTokenInvalido'));",
+         "        });",
+         "    });",
+         "}"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Limpeza: desativar o usuario descartavel (200)",
+     "request": {
+      "method": "PATCH",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/{{senhaUsuarioId}}/desativar",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "{{senhaUsuarioId}}",
+        "desativar"
+       ]
+      },
+      "description": "**Rode sempre ao final.** Usa o `{{tokenMaster}}` herdado da colecao, e nao o do descartavel — so o MASTER enxerga `/usuarios/{id}`.\n\nDesativa em vez de excluir porque **nao existe `DELETE` em `/usuarios`**, por decisao de projeto: usuario vira historico, nao some. O e-mail com timestamp e o que permite reexecutar a pasta sem colidir com os descartaveis das rodadas anteriores."
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "pm.test('ficou inativo', () => pm.expect(pm.response.json().ativo).to.be.false);",
+         "",
+         "['tokenSenha', 'tokenRecuperacao', 'senhaUsuarioEmail', 'senhaUsuarioId', 'mensagemTokenInvalido']",
+         "    .forEach(v => pm.collectionVariables.unset(v));"
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "description": "Alteracao e recuperacao de senha.\n\n**Dois caminhos, os dois com prova de posse.** `PUT /usuarios/eu/senha` exige a senha atual; o fluxo de `/auth/senha/*` exige acesso a caixa postal. **Nao existe terceiro** — nem o MASTER redefine a senha de outro usuario.\n\nO campo `senha` do `PUT /usuarios/eu` foi removido: trocava a senha sem exigir a atual, entao um token roubado bastava para tomar a conta. Os requests 3 e 4 provam que fechou.\n\n**A pasta usa um usuario descartavel e se limpa no fim.** Rodar contra o MASTER quebraria o `{{masterSenha}}` e junto com ele as outras onze pastas.\n\nUm request e manual: o Postman nao le caixa de e-mail, entao o token de recuperacao precisa ser colado em `{{tokenRecuperacao}}`."
   }
  ],
  "variable": [
@@ -5891,6 +6652,31 @@
   },
   {
    "key": "notificacaoId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "senhaUsuarioId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "senhaUsuarioEmail",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "tokenSenha",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "tokenRecuperacao",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "mensagemTokenInvalido",
    "value": "",
    "type": "string"
   }

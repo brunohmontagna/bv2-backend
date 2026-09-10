@@ -48,6 +48,7 @@ clientes *dela*.
 | Auth | JWT (HMAC256, biblioteca `com.auth0:java-jwt`) |
 | Docs | springdoc-openapi / Swagger UI |
 | Automações | n8n 2.x (webhook de saída que repassa a notificação ao WhatsApp) |
+| E-mail | Spring Mail (`suporte@bv2.tech`, SMTP da Hostinger) |
 | Frontend | React 19, TypeScript 6, Vite 8 (ainda não iniciado neste repositório) |
 
 Este repositório contém **apenas o backend** por enquanto. O frontend virá depois (ou em
@@ -60,6 +61,7 @@ As APIs REST estão finalizadas e já refatoradas para o modelo de papéis corre
 | Recurso | Endpoint base | Situação |
 |---|---|---|
 | Autenticação | `/auth/login` | pronto |
+| Senha | `/auth/senha/*`, `/usuarios/eu/senha` | pronto (troca autenticada + recuperação por e-mail) |
 | Clientes | `/clientes` | pronto |
 | Marcas | `/marcas` | pronto |
 | Serviços | `/servicos` | pronto |
@@ -85,6 +87,33 @@ com validade em `expiraEm`.
 O MASTER é semeado pela migration `V9`, então reaparece sozinho sempre que o banco é
 recriado do zero. O ADMIN não é semeado: crie-o com `POST /usuarios` autenticado como
 MASTER.
+
+Essas duas senhas ficam aqui em texto claro de propósito: são de banco local semeado e
+descartável. **Credencial de serviço externo não entra neste arquivo** — ele é versionado.
+
+### Credenciais de serviço (fora do repositório)
+
+Valores reais vivem só no `.env`, que está no `.gitignore`. O `.env.example` versiona as
+chaves, nunca os valores. Abaixo, onde encontrar cada uma:
+
+| Variável | O que é | Onde obter |
+|---|---|---|
+| `MAIL_USERNAME` | `suporte@bv2.tech` | fixo |
+| `MAIL_PASSWORD` | senha da **caixa postal**, não a da conta hPanel — a Hostinger não usa App Password como o Gmail | hPanel → E-mails → Contas de e-mail → `suporte@bv2.tech` → Alterar senha |
+| `N8N_WEBHOOK_URL` / `_TOKEN` | webhook que repassa a notificação ao WhatsApp | painel do n8n, no node Webhook |
+| `DB_PASSWORD` | Postgres local | definida na criação do volume Docker |
+| `JWT_SECRET` | assinatura dos tokens | qualquer segredo com 32+ caracteres |
+
+Ambiente local: **o container do Postgres não usa a 5432.** Há um PostgreSQL nativo
+instalado no host ocupando essa porta, então o container é publicado na **5433** e o
+`DB_PORT` aponta para lá. Suba com:
+
+```bash
+POSTGRES_PORT=5433 docker compose -p migrations-projeto-bv2 \
+  -f infra/docker-compose.dev.yml up -d
+```
+
+Para voltar à 5432, `sudo systemctl disable --now postgresql` desliga o nativo.
 
 ## Comandos
 
@@ -114,11 +143,11 @@ domain/       entity/ (JPA) e enums/
 dto/          records de request/response, um subpacote por recurso
 security/     JWT, UserDetails, SecurityConfig, tradução de 401/403
 exception/    exceções de negócio + GlobalExceptionHandler (RFC 7807)
-integration/  clientes HTTP de saída (hoje só o webhook do n8n)
+integration/  saída para fora da aplicação (webhook do n8n, envio de e-mail)
 config/       OpenApiConfig
 ```
 
-Migrations em `src/main/resources/db/migration` (`V1` … `V18`).
+Migrations em `src/main/resources/db/migration` (`V1` … `V19`).
 
 ## Modelo de dados
 
@@ -191,7 +220,82 @@ Consequências, todas importantes:
 - **Desativar vale na hora.** `isEnabled()` barra o login, e o `JwtAuthFilter` recusa o
   token já emitido a cada requisição — sem isso o desativado continuaria entrando pelos
   120 minutos de validade do JWT.
-- Senha ausente no `PUT` significa "manter a atual", não "apagar".
+- **O `PUT` não troca senha.** O campo já existiu ali e foi removido: mudava a senha sem
+  exigir a atual, então um token roubado bastava para tomar a conta. Ver a seção Senha.
+
+### Senha
+
+Dois caminhos, os dois com prova de posse. **Não existe terceiro** — em particular, nem o
+MASTER redefine a senha de outro usuário: quem esqueceu usa a recuperação como todo mundo.
+
+| Situação | Rota | Prova |
+|---|---|---|
+| Sabe a senha e quer trocar | `PUT /usuarios/eu/senha` | informa a senha atual |
+| Esqueceu a senha | `POST /auth/senha/esqueci` → e-mail → `POST /auth/senha/redefinir` | acessa a caixa postal |
+
+As duas rotas de `/auth/senha` são **públicas** — quem esqueceu a senha não tem como se
+autenticar para pedir a troca.
+
+**Senha atual errada responde 422, não 401.** O 401 seria errado (o token é válido, o
+usuário *está* autenticado) e perigoso na prática: interceptador de front costuma deslogar
+em qualquer 401, então um erro de digitação expulsaria o usuário da sessão.
+
+**Trocar a senha derruba as sessões abertas.** `usuarios.senha_alterada_em` (V19) guarda a
+marca e o `JwtAuthFilter` recusa token cujo `iat` seja anterior a ela. Não foi preciso claim
+novo: o `iat` já era emitido, só não era lido. Dois detalhes que quebram em silêncio se
+mexidos:
+
+- **`senha_alterada_em` é gravado truncado a segundos.** O `iat` do JWT tem precisão de
+  segundos e a coluna guarda microssegundos — sem truncar, a comparação erraria por
+  arredondamento e derrubaria sessões legítimas de forma intermitente.
+- **A comparação é estritamente "antes".** Token emitido no mesmo segundo da troca
+  sobrevive. Janela de 1 segundo aceita de propósito: a alternativa (`<=`) rejeitaria o
+  login imediatamente seguinte à troca, que é um problema real de uso contra um risco
+  teórico. `NULL` significa "nunca trocou" e o token passa.
+
+**O fluxo de recuperação não revela quem tem conta.** `POST /auth/senha/esqueci` responde
+**202 com corpo vazio** nos três casos — e-mail cadastrado, não cadastrado ou de usuário
+inativo. É uma inconsistência deliberada com `POST /usuarios`, que devolve 409 dizendo que o
+e-mail já existe: lá quem pergunta é um MASTER autenticado, aqui é um anônimo. Pelo mesmo
+motivo, **todos os motivos de recusa da redefinição usam a mesma mensagem** — distinguir
+"não existe" de "expirou" contaria ao atacante que aquele token um dia existiu.
+
+Sobre o token de recuperação (`tokens_recuperacao_senha`, V19):
+
+- **Só o SHA-256 vai para o banco**, nunca o token. Vazamento do banco não pode virar tomada
+  de contas. SHA-256 e não BCrypt por dois motivos: o token já nasce com 256 bits de
+  `SecureRandom` (key stretching não acrescenta nada) e precisa ser **buscável por
+  igualdade**, o que o sal do BCrypt impediria sem varrer a tabela inteira.
+- **Uso único e prazo curto** (30 min, configurável). Redimir marca `usado_em` e invalida os
+  demais pendentes do usuário; pedir um link novo também invalida os anteriores. Com dois
+  e-mails na caixa de entrada, só o último funciona.
+- `usado_em` nulo = pendente. O histórico fica, então dá para auditar quantos links foram
+  pedidos e quais viraram troca de senha.
+
+**Limitações aceitas** — são escopo, não descuido:
+
+- **Sem rate limiting.** Nada impede pedir mil links. A invalidação em cascata mitiga em
+  parte, mas ainda dá para inundar a caixa de entrada de alguém e estourar a cota de envio
+  da Hostinger, derrubando o e-mail para todos.
+- **Timing attack residual.** A resposta é idêntica, mas o caminho "e-mail existe" faz mais
+  trabalho (gera token, grava, envia) e demora mais.
+- **Token na query string** entra no histórico do navegador e pode vazar por `Referer`. É a
+  prática corrente; a vida curta e o uso único são a mitigação.
+
+**Envio de e-mail** (`integration/EmailService`): síncrono, sem `@Async` — o projeto não tem
+`@EnableAsync` e a notificação por WhatsApp deliberadamente não abriu esse precedente. Os
+timeouts SMTP são explícitos (5s) porque sem eles um servidor que aceita a conexão e não
+responde prende a thread da requisição indefinidamente. **`spring.mail.username` em branco
+desliga o envio**: a aplicação sobe, o token continua sendo gravado e só o e-mail não sai —
+mesmo contrato do `N8nWebhookClient` com a URL vazia. O `EmailService` nunca lança e **nunca
+loga o token nem o link**.
+
+Configuração da Hostinger: `MAIL_USERNAME` é o endereço completo e `MAIL_PASSWORD` é a senha
+da caixa postal (não há App Password como no Gmail). A porta **465 é SSL implícito**
+(`MAIL_SSL=true`, `MAIL_STARTTLS=false`); a 587 é o inverso. Ligar o modo errado para a porta
+trava a conexão até o timeout com `EOFException` e nenhuma mensagem útil. O `MAIL_FROM`
+precisa ser a mesma conta que autentica, senão o servidor recusa com "sender address
+rejected"; só o nome de exibição é livre.
 
 ### Ordem de serviço
 
