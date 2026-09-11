@@ -6417,6 +6417,703 @@
     }
    ],
    "description": "Alteracao e recuperacao de senha.\n\n**Dois caminhos, os dois com prova de posse.** `PUT /usuarios/eu/senha` exige a senha atual; o fluxo de `/auth/senha/*` exige acesso a caixa postal. **Nao existe terceiro** — nem o MASTER redefine a senha de outro usuario.\n\nO campo `senha` do `PUT /usuarios/eu` foi removido: trocava a senha sem exigir a atual, entao um token roubado bastava para tomar a conta. Os requests 3 e 4 provam que fechou.\n\n**A pasta usa um usuario descartavel e se limpa no fim.** Rodar contra o MASTER quebraria o `{{masterSenha}}` e junto com ele as outras onze pastas.\n\nUm request e manual: o Postman nao le caixa de e-mail, entao o token de recuperacao precisa ser colado em `{{tokenRecuperacao}}`."
+  },
+  {
+   "name": "13. Email",
+   "item": [
+    {
+     "name": "Criar usuario descartavel (201)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios"
+       ]
+      },
+      "description": "**Rode a pasta inteira, na ordem.** Os testes trocam o e-mail de verdade, entao usam um usuario descartavel — rodar contra o MASTER trocaria o login dele e quebraria as outras doze pastas.\n\nOs dois e-mails (atual e novo) levam timestamp no pre-request, para a pasta rodar quantas vezes quiser sem colidir no 409.",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"nome\": \"Teste Email\",\n    \"email\": \"{{emailUsuarioAtual}}\",\n    \"senha\": \"senhaEmail123\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "prerequest",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const t = Date.now();",
+         "pm.collectionVariables.set('emailUsuarioAtual', 'teste.email+' + t + '@bv2.tech');",
+         "pm.collectionVariables.set('emailUsuarioNovo', 'novo.email+' + t + '@bv2.tech');"
+        ]
+       }
+      },
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('201 Created', () => pm.response.to.have.status(201));",
+         "pm.collectionVariables.set('emailUsuarioId', pm.response.json().id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Login do descartavel (200)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/auth/login",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "auth",
+        "login"
+       ]
+      },
+      "description": "Guarda o token em `{{tokenEmail}}`. Ele e usado adiante para provar que **trocar o e-mail derruba a sessao**.",
+      "auth": {
+       "type": "noauth"
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"email\": \"{{emailUsuarioAtual}}\",\n    \"senha\": \"senhaEmail123\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "pm.collectionVariables.set('tokenEmail', pm.response.json().token);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "O PUT ignora o campo email (200)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu"
+       ]
+      },
+      "description": "**O teste que prova que o furo fechou.** O `PUT` trocava o e-mail direto, sem senha e sem verificacao — e o e-mail e o login. Um token roubado bastava para tomar a conta, e um typo a trancava para sempre. O campo saiu do DTO: o JSON passa, mas o e-mail e ignorado.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenEmail}}",
+         "type": "string"
+        }
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"nome\": \"Teste Email\",\n    \"email\": \"atacante@evil.com\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "pm.test('o e-mail NAO mudou', () => {",
+         "    pm.expect(pm.response.json().email).to.eql(pm.collectionVariables.get('emailUsuarioAtual'));",
+         "});"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Senha atual incorreta (422)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu/email",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu",
+        "email"
+       ]
+      },
+      "description": "**422 e nao 401.** O token e valido e o usuario *esta* autenticado; o 401 faria o interceptador do front deslogar por erro de digitacao.\n\nA senha e exigida porque a confirmacao vai para o endereco **novo**: quem clica e quem controla o destino — no ataque, o proprio atacante. Sem a senha, sessao roubada viraria tomada de conta.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenEmail}}",
+         "type": "string"
+        }
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"senhaAtual\": \"chuteErrado1\",\n    \"novoEmail\": \"{{emailUsuarioNovo}}\",\n    \"novoEmailConfirmacao\": \"{{emailUsuarioNovo}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+         "pm.test('nao e 401', () => pm.expect(pm.response.code).to.not.eql(401));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Confirmacao divergente (422)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu/email",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu",
+        "email"
+       ]
+      },
+      "description": "O campo de confirmacao pega o typo antes do envio. Conferido no servidor: a regra nao pode depender de o front conferir.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenEmail}}",
+         "type": "string"
+        }
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"senhaAtual\": \"senhaEmail123\",\n    \"novoEmail\": \"{{emailUsuarioNovo}}\",\n    \"novoEmailConfirmacao\": \"digiteiOutro@bv2.tech\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+         "pm.test('aponta a confirmacao', () => pm.expect(pm.response.json().detail).to.include('confirmacao'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "E-mail ja em uso (409)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu/email",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu",
+        "email"
+       ]
+      },
+      "description": "Aponta para o e-mail do MASTER. 409 com mensagem legivel, como `POST /usuarios` ja faz.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenEmail}}",
+         "type": "string"
+        }
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"senhaAtual\": \"senhaEmail123\",\n    \"novoEmail\": \"{{masterEmail}}\",\n    \"novoEmailConfirmacao\": \"{{masterEmail}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('409 Conflict', () => pm.response.to.have.status(409));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Mesmo e-mail atual (422)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu/email",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu",
+        "email"
+       ]
+      },
+      "description": "Trocar pelo mesmo endereco nao e troca.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenEmail}}",
+         "type": "string"
+        }
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"senhaAtual\": \"senhaEmail123\",\n    \"novoEmail\": \"{{emailUsuarioAtual}}\",\n    \"novoEmailConfirmacao\": \"{{emailUsuarioAtual}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+         "pm.test('explica', () => pm.expect(pm.response.json().detail).to.include('igual'));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Pedir a troca de e-mail (202)",
+     "request": {
+      "method": "PUT",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu/email",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu",
+        "email"
+       ]
+      },
+      "description": "**202 e nada muda ainda.** O link vai para o endereco **novo**; so quando for usado a troca acontece. Ate la, o e-mail atual continua sendo o login — o teste confere isso.\n\nE por isso que typo deixou de ser fatal: endereco errado e so um link que nunca chega.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenEmail}}",
+         "type": "string"
+        }
+       ]
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"senhaAtual\": \"senhaEmail123\",\n    \"novoEmail\": \"{{emailUsuarioNovo}}\",\n    \"novoEmailConfirmacao\": \"{{emailUsuarioNovo}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+         "",
+         "pm.sendRequest({",
+         "    url: pm.collectionVariables.get('baseUrl') + '/usuarios/eu',",
+         "    method: 'GET',",
+         "    header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('tokenEmail') }",
+         "}, (err, res) => {",
+         "    pm.test('o e-mail atual continua o mesmo ate a confirmacao', () => {",
+         "        pm.expect(err).to.be.null;",
+         "        pm.expect(res.json().email).to.eql(pm.collectionVariables.get('emailUsuarioAtual'));",
+         "    });",
+         "});"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Confirmar com token invalido (422)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/auth/email/confirmar",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "auth",
+        "email",
+        "confirmar"
+       ]
+      },
+      "description": "Rota **publica**: o token e a credencial, e o link costuma ser aberto em outro navegador. Token inexistente, usado, expirado ou **de outro fluxo** (um de recuperacao de senha, por exemplo) devolvem exatamente a mesma mensagem.",
+      "auth": {
+       "type": "noauth"
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"token\": \"esteTokenNuncaExistiu\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
+         "pm.collectionVariables.set('mensagemTokenEmailInvalido', pm.response.json().detail);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Confirmar com o token do e-mail (204) - COLE O TOKEN",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/auth/email/confirmar",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "auth",
+        "email",
+        "confirmar"
+       ]
+      },
+      "description": "**Unico request manual da pasta.** O link foi para `{{emailUsuarioNovo}}`; copie o trecho depois de `?token=` e cole em `{{tokenConfirmacaoEmail}}`. Em desenvolvimento, o Mailpit (localhost:8025) mostra a caixa.\n\nSem colar o token, este request e os dois seguintes ficam em vermelho — e esperado.",
+      "auth": {
+       "type": "noauth"
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"token\": \"{{tokenConfirmacaoEmail}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "const tk = pm.collectionVariables.get('tokenConfirmacaoEmail');",
+         "if (!tk) {",
+         "    pm.test.skip('SEM TOKEN: cole o token do e-mail em {{tokenConfirmacaoEmail}}', () => {});",
+         "} else {",
+         "    pm.test('204 No Content', () => pm.response.to.have.status(204));",
+         "    pm.sendRequest({",
+         "        url: pm.collectionVariables.get('baseUrl') + '/auth/email/confirmar',",
+         "        method: 'POST',",
+         "        header: { 'Content-Type': 'application/json' },",
+         "        body: { mode: 'raw', raw: JSON.stringify({ token: tk }) }",
+         "    }, (err, res) => {",
+         "        pm.test('uso unico: o mesmo token nao serve duas vezes', () => pm.expect(res.code).to.eql(422));",
+         "        pm.test('com a mesma mensagem de token inexistente', () => {",
+         "            pm.expect(res.json().detail).to.eql(pm.collectionVariables.get('mensagemTokenEmailInvalido'));",
+         "        });",
+         "    });",
+         "}"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "A sessao anterior caiu (401)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/eu",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "eu"
+       ]
+      },
+      "description": "**Nenhum codigo faz isso — sai de graca.** O `subject` do JWT e o e-mail; depois da troca o `JwtAuthFilter` procura o usuario pelo endereco antigo, nao acha, e nao autentica. Parece bug; nao e.",
+      "auth": {
+       "type": "bearer",
+       "bearer": [
+        {
+         "key": "token",
+         "value": "{{tokenEmail}}",
+         "type": "string"
+        }
+       ]
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Login com o e-mail novo (200)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{baseUrl}}/auth/login",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "auth",
+        "login"
+       ]
+      },
+      "description": "Confere que o endereco novo virou o login, e que o antigo deixou de ser.",
+      "auth": {
+       "type": "noauth"
+      },
+      "body": {
+       "mode": "raw",
+       "raw": "{\n    \"email\": \"{{emailUsuarioNovo}}\",\n    \"senha\": \"senhaEmail123\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "pm.sendRequest({",
+         "    url: pm.collectionVariables.get('baseUrl') + '/auth/login',",
+         "    method: 'POST',",
+         "    header: { 'Content-Type': 'application/json' },",
+         "    body: { mode: 'raw', raw: JSON.stringify({ email: pm.collectionVariables.get('emailUsuarioAtual'), senha: 'senhaEmail123' }) }",
+         "}, (err, res) => {",
+         "    pm.test('o e-mail antigo deixou de logar', () => pm.expect(res.code).to.eql(401));",
+         "});"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Limpeza: desativar o usuario descartavel (200)",
+     "request": {
+      "method": "PATCH",
+      "header": [],
+      "url": {
+       "raw": "{{baseUrl}}/usuarios/{{emailUsuarioId}}/desativar",
+       "host": [
+        "{{baseUrl}}"
+       ],
+       "path": [
+        "usuarios",
+        "{{emailUsuarioId}}",
+        "desativar"
+       ]
+      },
+      "description": "**Rode sempre ao final.** Usa o `{{tokenMaster}}` herdado da colecao. Desativa em vez de excluir porque nao existe `DELETE` em `/usuarios`, por decisao de projeto."
+     },
+     "response": [],
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200 OK', () => pm.response.to.have.status(200));",
+         "pm.test('ficou inativo', () => pm.expect(pm.response.json().ativo).to.be.false);",
+         "['tokenEmail','tokenConfirmacaoEmail','emailUsuarioAtual','emailUsuarioNovo','emailUsuarioId','mensagemTokenEmailInvalido']",
+         "    .forEach(v => pm.collectionVariables.unset(v));"
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "description": "Alteracao do e-mail do usuario, em duas etapas: `PUT /usuarios/eu/email` (senha atual + endereco novo) e `POST /auth/email/confirmar` (so o token).\n\n**A confirmacao vai para o endereco NOVO.** Assim um typo vira link que nunca chega, e a conta continua intacta. Por isso a senha atual e exigida no pedido: com a verificacao no destino, o clique nao prova identidade.\n\nO `PUT /usuarios/eu` deixou de trocar e-mail — o request 3 prova.\n\n**Usa usuario descartavel e se limpa no fim.** Um request e manual: o token vem por e-mail e precisa ser colado em `{{tokenConfirmacaoEmail}}`."
   }
  ],
  "variable": [
@@ -6677,6 +7374,36 @@
   },
   {
    "key": "mensagemTokenInvalido",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "emailUsuarioId",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "emailUsuarioAtual",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "emailUsuarioNovo",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "tokenEmail",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "tokenConfirmacaoEmail",
+   "value": "",
+   "type": "string"
+  },
+  {
+   "key": "mensagemTokenEmailInvalido",
    "value": "",
    "type": "string"
   }

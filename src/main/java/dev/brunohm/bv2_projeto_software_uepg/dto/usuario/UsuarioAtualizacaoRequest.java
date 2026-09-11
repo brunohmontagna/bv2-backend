@@ -1,6 +1,5 @@
 package dev.brunohm.bv2_projeto_software_uepg.dto.usuario;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -9,21 +8,20 @@ import jakarta.validation.constraints.Size;
  * pelos PATCH /ativar e /desativar.
  *
  * <p>
- * <b>A senha tambem nao.</b> Ela ja esteve neste request e foi removida: trocava a
- * senha sem exigir a atual, entao qualquer token roubado bastava para tomar a conta.
- * Agora existem exatamente dois caminhos, os dois com prova de posse —
- * PUT /usuarios/eu/senha (sabe a senha atual) e o fluxo de recuperacao por e-mail
- * (tem acesso a caixa postal). Isso vale inclusive para o MASTER: ele nao redefine
- * a senha de outro usuario, quem esqueceu usa a recuperacao.
+ * <b>Senha e e-mail tambem nao.</b> Os dois ja estiveram neste request e foram
+ * removidos pelo mesmo motivo: mudavam sem prova de posse, e os dois sao
+ * credenciais — o e-mail e o login. Um token roubado bastava para tomar a conta,
+ * e um typo no e-mail a trancava para sempre.
+ *
+ * <p>
+ * Cada um tem agora seu fluxo verificado: PUT /usuarios/eu/senha exige a senha
+ * atual, e PUT /usuarios/eu/email exige a senha atual e a confirmacao no endereco
+ * novo. Isso vale inclusive para o MASTER, que nao troca senha nem e-mail de outro
+ * usuario.
  */
 public record UsuarioAtualizacaoRequest(
 
         @NotBlank(message = "O nome e obrigatorio")
         @Size(max = 50, message = "O nome deve ter no maximo 50 caracteres")
-        String nome,
-
-        @NotBlank(message = "O e-mail e obrigatorio")
-        @Email(message = "E-mail em formato invalido")
-        @Size(max = 50, message = "O e-mail deve ter no maximo 50 caracteres")
-        String email) {
+        String nome) {
 }

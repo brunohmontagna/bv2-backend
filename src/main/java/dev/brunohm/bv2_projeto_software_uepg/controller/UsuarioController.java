@@ -20,9 +20,11 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import dev.brunohm.bv2_projeto_software_uepg.dto.PaginaResponse;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.AlteracaoSenhaRequest;
+import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.SolicitacaoAlteracaoEmailRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioAtualizacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioCriacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioResponse;
+import dev.brunohm.bv2_projeto_software_uepg.service.AlteracaoEmailService;
 import dev.brunohm.bv2_projeto_software_uepg.service.UsuarioService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -45,6 +47,7 @@ import lombok.RequiredArgsConstructor;
 public class UsuarioController {
 
     private final UsuarioService usuarioService;
+    private final AlteracaoEmailService alteracaoEmailService;
 
     // ------------------------------------------------------------------
     // Proprio usuario: aberto a qualquer autenticado
@@ -61,12 +64,11 @@ public class UsuarioController {
     }
 
     @PutMapping("/eu")
-    @Operation(summary = "Atualiza nome e e-mail do proprio usuario (papel, situacao e senha nao entram aqui)")
+    @Operation(summary = "Atualiza o nome do proprio usuario (e-mail e senha tem fluxos proprios, verificados)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Usuario atualizado"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),
-            @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "409", description = "E-mail ja cadastrado em outro usuario")
+            @ApiResponse(responseCode = "401", description = "Token ausente ou invalido")
     })
     public ResponseEntity<UsuarioResponse> atualizarAutenticado(
             @Valid @RequestBody UsuarioAtualizacaoRequest request) {
@@ -84,6 +86,28 @@ public class UsuarioController {
     public ResponseEntity<Void> alterarSenha(@Valid @RequestBody AlteracaoSenhaRequest request) {
         usuarioService.alterarSenhaAutenticado(request);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Nada muda aqui: o endereco so passa a valer quando o link enviado a ele for
+     * clicado. Por isso 202, e nao 200 com o usuario atualizado.
+     */
+    @PutMapping("/eu/email")
+    @Operation(summary = "Pede a troca do proprio e-mail; a confirmacao vai para o endereco novo",
+            description = "Exige a senha atual. A troca so acontece quando o link enviado ao endereco "
+                    + "novo for usado em POST /auth/email/confirmar. Ate la, o e-mail atual continua "
+                    + "sendo o login.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "202", description = "Pedido registrado; link enviado ao endereco novo"),
+            @ApiResponse(responseCode = "400", description = "Dados invalidos"),
+            @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
+            @ApiResponse(responseCode = "409", description = "O endereco novo ja pertence a outro usuario"),
+            @ApiResponse(responseCode = "422", description = "Senha atual incorreta, confirmacao divergente ou endereco igual ao atual")
+    })
+    public ResponseEntity<Void> solicitarAlteracaoEmail(
+            @Valid @RequestBody SolicitacaoAlteracaoEmailRequest request) {
+        alteracaoEmailService.solicitar(request);
+        return ResponseEntity.accepted().build();
     }
 
     // ------------------------------------------------------------------
@@ -139,14 +163,13 @@ public class UsuarioController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('MASTER')")
-    @Operation(summary = "Atualiza nome e e-mail de um usuario (papel, situacao e senha nao entram aqui)")
+    @Operation(summary = "Atualiza o nome de um usuario (e-mail e senha so mudam pelo proprio dono, com verificacao)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Usuario atualizado"),
             @ApiResponse(responseCode = "400", description = "Dados invalidos"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
             @ApiResponse(responseCode = "403", description = "Apenas o MASTER gerencia usuarios"),
-            @ApiResponse(responseCode = "404", description = "Usuario nao encontrado"),
-            @ApiResponse(responseCode = "409", description = "E-mail ja cadastrado em outro usuario")
+            @ApiResponse(responseCode = "404", description = "Usuario nao encontrado")
     })
     public ResponseEntity<UsuarioResponse> atualizar(
             @PathVariable Long id,
