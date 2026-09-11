@@ -1,13 +1,7 @@
 package dev.brunohm.bv2_projeto_software_uepg.service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -15,13 +9,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import dev.brunohm.bv2_projeto_software_uepg.domain.entity.TokenRecuperacaoSenha;
+import dev.brunohm.bv2_projeto_software_uepg.domain.entity.TokenVerificacao;
 import dev.brunohm.bv2_projeto_software_uepg.domain.entity.Usuario;
+import dev.brunohm.bv2_projeto_software_uepg.domain.enums.FinalidadeToken;
 import dev.brunohm.bv2_projeto_software_uepg.dto.auth.RecuperacaoSenhaRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.auth.RedefinicaoSenhaRequest;
 import dev.brunohm.bv2_projeto_software_uepg.exception.RegraDeNegocioException;
 import dev.brunohm.bv2_projeto_software_uepg.integration.EmailService;
-import dev.brunohm.bv2_projeto_software_uepg.repository.TokenRecuperacaoSenhaRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.UsuarioRepository;
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,30 +44,22 @@ public class RecuperacaoSenhaService {
     private static final String TOKEN_INVALIDO =
             "Link de redefinicao invalido ou expirado. Solicite um novo.";
 
-    /** 32 bytes = 256 bits de entropia. Forca bruta esta fora de questao. */
-    private static final int TAMANHO_TOKEN_BYTES = 32;
-
     private final UsuarioRepository usuarioRepository;
-    private final TokenRecuperacaoSenhaRepository tokenRepository;
+    private final TokenVerificacaoService tokenVerificacaoService;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
-    private final SecureRandom secureRandom = new SecureRandom();
-
-    private final String urlFrontend;
     private final long expiracaoMinutos;
 
     public RecuperacaoSenhaService(
             UsuarioRepository usuarioRepository,
-            TokenRecuperacaoSenhaRepository tokenRepository,
+            TokenVerificacaoService tokenVerificacaoService,
             PasswordEncoder passwordEncoder,
             EmailService emailService,
-            @Value("${app.frontend.url}") String urlFrontend,
             @Value("${app.recuperacao-senha.expiracao-minutos:30}") long expiracaoMinutos) {
         this.usuarioRepository = usuarioRepository;
-        this.tokenRepository = tokenRepository;
+        this.tokenVerificacaoService = tokenVerificacaoService;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
-        this.urlFrontend = urlFrontend;
         this.expiracaoMinutos = expiracaoMinutos;
     }
 
@@ -97,21 +83,16 @@ public class RecuperacaoSenhaService {
             return;
         }
 
-        LocalDateTime agora = LocalDateTime.now();
-
-        // Pedir um link novo derruba os anteriores: com dois e-mails na caixa de
-        // entrada, so o ultimo funciona.
-        tokenRepository.invalidarPendentesDoUsuario(usuario.getId(), agora);
-
-        String token = gerarToken();
-        tokenRepository.save(TokenRecuperacaoSenha.builder()
-                .usuario(usuario)
-                .tokenHash(hash(token))
-                .expiraEm(agora.plusMinutes(expiracaoMinutos))
-                .build());
+        // Pedir um link novo derruba os anteriores desta finalidade: com dois
+        // e-mails na caixa de entrada, so o ultimo funciona.
+        String token = tokenVerificacaoService.emitir(
+                usuario, FinalidadeToken.RECUPERACAO_SENHA, null, expiracaoMinutos);
 
         emailService.enviarRecuperacaoSenha(
-                usuario.getEmail(), usuario.getNome(), montarLink(token), expiracaoMinutos);
+                usuario.getEmail(),
+                usuario.getNome(),
+                tokenVerificacaoService.link("/redefinir-senha", token),
+                expiracaoMinutos);
     }
 
     /**
@@ -125,62 +106,21 @@ public class RecuperacaoSenhaService {
             throw new RegraDeNegocioException("A nova senha e a confirmacao nao conferem.");
         }
 
-        TokenRecuperacaoSenha token = tokenRepository.findByTokenHash(hash(request.token()))
-                .orElseThrow(() -> new RegraDeNegocioException(TOKEN_INVALIDO));
-
-        LocalDateTime agora = LocalDateTime.now();
-
-        // Uso unico e prazo curto, com a mesma mensagem do token inexistente.
-        if (!token.estaPendente(agora)) {
-            throw new RegraDeNegocioException(TOKEN_INVALIDO);
-        }
+        // Inexistente, de outra finalidade, usado, expirado ou de usuario inativo:
+        // todos com a mesma mensagem, para nao revelar que o token existiu.
+        TokenVerificacao token = tokenVerificacaoService.validar(
+                request.token(), FinalidadeToken.RECUPERACAO_SENHA, TOKEN_INVALIDO);
 
         Usuario usuario = token.getUsuario();
 
-        if (Boolean.FALSE.equals(usuario.getAtivo())) {
-            throw new RegraDeNegocioException(TOKEN_INVALIDO);
-        }
-
         usuario.setSenha(passwordEncoder.encode(request.senhaNova()));
-        usuario.setSenhaAlteradaEm(agora.truncatedTo(ChronoUnit.SECONDS));
+        usuario.setSenhaAlteradaEm(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
         usuarioRepository.save(usuario);
 
-        // Queima este token e qualquer outro pendente: depois da troca, nenhum link
-        // antigo pode continuar valendo.
-        token.setUsadoEm(agora);
-        tokenRepository.save(token);
-        tokenRepository.invalidarPendentesDoUsuario(usuario.getId(), agora);
+        // Queima este token e qualquer outro pendente da mesma finalidade: depois da
+        // troca, nenhum link antigo de recuperacao pode continuar valendo.
+        tokenVerificacaoService.consumir(token);
 
         log.info("Senha redefinida por recuperacao para o usuario {}.", usuario.getId());
-    }
-
-    /* Base64 URL-safe para o token viajar na query string sem escapar nada. */
-    private String gerarToken() {
-        byte[] bytes = new byte[TAMANHO_TOKEN_BYTES];
-        secureRandom.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    /*
-     * SHA-256 e nao BCrypt: o token ja tem 256 bits de entropia, entao key stretching
-     * nao acrescenta nada, e o hash precisa ser buscavel por igualdade — o sal do
-     * BCrypt obrigaria a varrer a tabela inteira comparando linha a linha.
-     */
-    private String hash(String token) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 e obrigatorio em toda JVM; se faltar, nao ha o que fazer.
-            throw new IllegalStateException("SHA-256 indisponivel nesta JVM", e);
-        }
-    }
-
-    /* A barra final da URL configurada nao pode virar // no link. */
-    private String montarLink(String token) {
-        String base = urlFrontend.endsWith("/")
-                ? urlFrontend.substring(0, urlFrontend.length() - 1)
-                : urlFrontend;
-        return base + "/redefinir-senha?token=" + token;
     }
 }

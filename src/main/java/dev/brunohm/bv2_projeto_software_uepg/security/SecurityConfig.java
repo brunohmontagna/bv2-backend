@@ -45,6 +45,9 @@ public class SecurityConfig {
                         // a senha nao tem como se autenticar para pedir a troca.
                         .requestMatchers(HttpMethod.POST, "/auth/senha/esqueci").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/senha/redefinir").permitAll()
+                        // Confirmacao de e-mail: o token e a credencial, e o link costuma
+                        // ser aberto em outro navegador, sem sessao.
+                        .requestMatchers(HttpMethod.POST, "/auth/email/confirmar").permitAll()
                         .requestMatchers(ROTAS_PUBLICAS).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex

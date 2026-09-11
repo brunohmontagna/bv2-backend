@@ -100,15 +100,13 @@ public class UsuarioService {
         return UsuarioResponse.fromEntity(usuarioRepository.save(usuario));
     }
 
+    /*
+     * So o nome. Senha e e-mail ja estiveram aqui e sairam pelo mesmo motivo: mudavam
+     * sem prova de posse, e os dois sao credenciais — o e-mail e o login. Cada um tem
+     * agora seu fluxo verificado (PUT /usuarios/eu/senha e PUT /usuarios/eu/email).
+     */
     private Usuario aplicarAtualizacao(Usuario usuario, UsuarioAtualizacaoRequest request) {
-        if (usuarioRepository.existsByEmailAndIdNot(request.email(), usuario.getId())) {
-            throw new RecursoDuplicadoException(
-                    "Ja existe um usuario cadastrado com o e-mail " + request.email());
-        }
-
         usuario.setNome(request.nome());
-        usuario.setEmail(request.email());
-
         return usuarioRepository.save(usuario);
     }
 

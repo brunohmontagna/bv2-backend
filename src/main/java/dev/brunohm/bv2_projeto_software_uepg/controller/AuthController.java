@@ -6,10 +6,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import dev.brunohm.bv2_projeto_software_uepg.dto.auth.ConfirmacaoEmailRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.auth.LoginRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.auth.LoginResponse;
 import dev.brunohm.bv2_projeto_software_uepg.dto.auth.RecuperacaoSenhaRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.auth.RedefinicaoSenhaRequest;
+import dev.brunohm.bv2_projeto_software_uepg.service.AlteracaoEmailService;
 import dev.brunohm.bv2_projeto_software_uepg.service.AuthService;
 import dev.brunohm.bv2_projeto_software_uepg.service.RecuperacaoSenhaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,11 +24,12 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
-@Tag(name = "Autenticacao", description = "Emissao de tokens JWT e recuperacao de senha. Rotas publicas")
+@Tag(name = "Autenticacao", description = "Emissao de tokens JWT, recuperacao de senha e confirmacao de e-mail. Rotas publicas")
 public class AuthController {
 
     private final AuthService authService;
     private final RecuperacaoSenhaService recuperacaoSenhaService;
+    private final AlteracaoEmailService alteracaoEmailService;
 
     @PostMapping("/login")
     @Operation(summary = "Autentica um usuario e devolve o token JWT")
@@ -67,6 +70,26 @@ public class AuthController {
     })
     public ResponseEntity<Void> redefinirSenha(@Valid @RequestBody RedefinicaoSenhaRequest request) {
         recuperacaoSenhaService.redefinir(request);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Publica, como /auth/senha/redefinir: o token e a credencial, e o clique no link
+     * costuma acontecer em outro navegador, onde nao ha sessao nenhuma.
+     */
+    @PostMapping("/email/confirmar")
+    @Operation(summary = "Confirma a troca de e-mail usando o token enviado ao endereco novo",
+            description = "Efetiva a troca e derruba as sessoes abertas: o subject do JWT e o e-mail, entao "
+                    + "os tokens emitidos com o endereco antigo deixam de valer. Token inexistente, usado, "
+                    + "expirado ou de outro fluxo devolvem a mesma mensagem, de proposito.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "E-mail alterado. As sessoes abertas deixam de valer"),
+            @ApiResponse(responseCode = "400", description = "Token ausente"),
+            @ApiResponse(responseCode = "409", description = "O endereco foi cadastrado por outro usuario desde o pedido"),
+            @ApiResponse(responseCode = "422", description = "Link invalido ou expirado")
+    })
+    public ResponseEntity<Void> confirmarEmail(@Valid @RequestBody ConfirmacaoEmailRequest request) {
+        alteracaoEmailService.confirmar(request);
         return ResponseEntity.noContent().build();
     }
 }

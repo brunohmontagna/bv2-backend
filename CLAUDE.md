@@ -62,6 +62,7 @@ As APIs REST estão finalizadas e já refatoradas para o modelo de papéis corre
 |---|---|---|
 | Autenticação | `/auth/login` | pronto |
 | Senha | `/auth/senha/*`, `/usuarios/eu/senha` | pronto (troca autenticada + recuperação por e-mail) |
+| E-mail do usuário | `/usuarios/eu/email`, `/auth/email/confirmar` | pronto (confirmação no endereço novo) |
 | Clientes | `/clientes` | pronto |
 | Marcas | `/marcas` | pronto |
 | Serviços | `/servicos` | pronto |
@@ -104,16 +105,21 @@ chaves, nunca os valores. Abaixo, onde encontrar cada uma:
 | `DB_PASSWORD` | Postgres local | definida na criação do volume Docker |
 | `JWT_SECRET` | assinatura dos tokens | qualquer segredo com 32+ caracteres |
 
-Ambiente local: **o container do Postgres não usa a 5432.** Há um PostgreSQL nativo
-instalado no host ocupando essa porta, então o container é publicado na **5433** e o
-`DB_PORT` aponta para lá. Suba com:
+Ambiente local: o container do Postgres usa a **5432**. Suba com:
 
 ```bash
-POSTGRES_PORT=5433 docker compose -p migrations-projeto-bv2 \
-  -f infra/docker-compose.dev.yml up -d
+docker compose -p migrations-projeto-bv2 -f infra/docker-compose.dev.yml up -d
 ```
 
-Para voltar à 5432, `sudo systemctl disable --now postgresql` desliga o nativo.
+O `-p migrations-projeto-bv2` não é opcional: é o nome de projeto com que o volume de dados
+foi criado. Sem ele o Compose deriva o nome do diretório (`infra`), cria um volume **novo e
+vazio**, e a aplicação sobe num banco zerado — os dados continuam intactos no volume antigo,
+só não estão montados.
+
+Se a 5432 estiver ocupada, é o PostgreSQL nativo do host (instalado via apt, habilitado no
+boot). O container sobe "healthy" mas **sem porta publicada**, e a aplicação passa a bater
+no banco errado — o sintoma é falha de autenticação por senha. `sudo systemctl disable --now
+postgresql` resolve.
 
 ## Comandos
 
@@ -147,7 +153,7 @@ integration/  saída para fora da aplicação (webhook do n8n, envio de e-mail)
 config/       OpenApiConfig
 ```
 
-Migrations em `src/main/resources/db/migration` (`V1` … `V19`).
+Migrations em `src/main/resources/db/migration` (`V1` … `V20`).
 
 ## Modelo de dados
 
@@ -220,8 +226,12 @@ Consequências, todas importantes:
 - **Desativar vale na hora.** `isEnabled()` barra o login, e o `JwtAuthFilter` recusa o
   token já emitido a cada requisição — sem isso o desativado continuaria entrando pelos
   120 minutos de validade do JWT.
-- **O `PUT` não troca senha.** O campo já existiu ali e foi removido: mudava a senha sem
-  exigir a atual, então um token roubado bastava para tomar a conta. Ver a seção Senha.
+- **O `PUT` só troca o nome.** Senha e e-mail já estiveram ali e saíram pelo mesmo motivo:
+  mudavam sem prova de posse, e os dois são credenciais — o e-mail é o login. Um token
+  roubado bastava para tomar a conta, e um typo no e-mail a trancava para sempre. Cada um tem
+  seu fluxo verificado (seções Senha e E-mail do usuário), e isso vale **inclusive para o
+  MASTER**, que não troca senha nem e-mail de outro usuário. Campos extras no corpo são
+  ignorados, não recusados.
 
 ### Senha
 
@@ -260,7 +270,8 @@ e-mail já existe: lá quem pergunta é um MASTER autenticado, aqui é um anôni
 motivo, **todos os motivos de recusa da redefinição usam a mesma mensagem** — distinguir
 "não existe" de "expirou" contaria ao atacante que aquele token um dia existiu.
 
-Sobre o token de recuperação (`tokens_recuperacao_senha`, V19):
+Sobre o token (`tokens_verificacao`, criada na V19 e generalizada na V20 — ver a seção
+E-mail do usuário):
 
 - **Só o SHA-256 vai para o banco**, nunca o token. Vazamento do banco não pode virar tomada
   de contas. SHA-256 e não BCrypt por dois motivos: o token já nasce com 256 bits de
@@ -296,6 +307,54 @@ da caixa postal (não há App Password como no Gmail). A porta **465 é SSL impl
 trava a conexão até o timeout com `EOFException` e nenhuma mensagem útil. O `MAIL_FROM`
 precisa ser a mesma conta que autentica, senão o servidor recusa com "sender address
 rejected"; só o nome de exibição é livre.
+
+### E-mail do usuário
+
+O e-mail é o login (`findByEmail`, e o `subject` do JWT), então trocá-lo é tão sensível
+quanto trocar a senha. **Duas etapas, e nada muda na primeira:**
+
+```
+PUT /usuarios/eu/email      (autenticado; senhaAtual + novoEmail + confirmação)  → 202
+        │  link enviado ao endereço NOVO
+POST /auth/email/confirmar  (público; só o token)                                → 204
+```
+
+**A confirmação vai para o endereço novo, não para o atual.** Verificar o atual provaria
+identidade, mas não que o novo existe — e como o e-mail é o login, um typo trancaria a conta
+de vez: não há `DELETE` em `/usuarios`, e se fosse o MASTER, o cadastro de usuários ficaria
+inacessível (o seed da V9 só roda em banco novo). Verificando no destino, endereço errado é
+só um link que nunca chega, e a conta continua como estava.
+
+**Por isso a senha atual é exigida.** Com a confirmação no destino, quem clica é quem
+controla o destino — no ataque, o próprio atacante. Sem a senha, uma sessão roubada viraria
+tomada de conta: o atacante aponta a conta para a caixa dele, confirma sozinho e depois usa o
+"esqueci minha senha". Senha errada é **422, não 401**, pela mesma razão do endpoint de senha.
+
+- **Unicidade checada duas vezes**: no pedido e na confirmação. Entre uma e outra, alguém pode
+  cadastrar aquele endereço; sem a segunda checagem, a corrida estouraria como violação de
+  constraint no commit, virando 409 genérico em vez de mensagem legível.
+- **O endereço novo viaja no token** (`tokens_verificacao.email_novo`), não na URL nem no
+  corpo da confirmação. A tela do front não tem formulário: só posta o token.
+- **A sessão cai sozinha, sem código.** Depois da troca, o `JwtAuthFilter` faz
+  `loadUserByUsername(emailAntigo)`, não acha ninguém e não autentica. Parece bug; não é.
+- `/auth/email/confirmar` é **pública** como `/auth/senha/redefinir`: o token é a credencial,
+  e o link costuma ser aberto em outro navegador, sem sessão.
+
+**A tabela de tokens é compartilhada** com a recuperação de senha. A V20 renomeou
+`tokens_recuperacao_senha` para `tokens_verificacao` e acrescentou `finalidade`
+(`RECUPERACAO_SENHA` | `ALTERACAO_EMAIL`). A mecânica — gerar, hashear, validar, consumir —
+mora **só** no `TokenVerificacaoService`; os dois fluxos decidem o que fazer com o token, não
+como ele funciona. Duas cópias de código de segurança divergiriam na primeira correção
+aplicada só de um lado.
+
+Uma armadilha que quebra em silêncio se mexida: **a invalidação em cascata filtra por
+finalidade.** Sem o filtro, pedir uma troca de e-mail derrubaria um link de recuperação de
+senha recém-pedido, e vice-versa. E um token de uma finalidade é recusado na outra com a
+**mesma mensagem** de token inexistente.
+
+Sobra cosmética da V20: o PostgreSQL 18 dá nome às constraints `NOT NULL`, e as cinco
+herdadas da V19 ainda se chamam `tokens_recuperacao_senha_*_not_null`. Não afetam nada —
+ninguém referencia esses nomes — e não justificaram uma migration só para renomeá-las.
 
 ### Ordem de serviço
 
