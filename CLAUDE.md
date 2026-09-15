@@ -153,7 +153,7 @@ integration/  saída para fora da aplicação (webhook do n8n, envio de e-mail)
 config/       OpenApiConfig
 ```
 
-Migrations em `src/main/resources/db/migration` (`V1` … `V20`).
+Migrations em `src/main/resources/db/migration` (`V1` … `V21`).
 
 ## Modelo de dados
 
@@ -444,11 +444,14 @@ Como se define:
 - **Um equipamento é uma unidade física, não um modelo de catálogo.** O vínculo é com **um
   único cliente** (`id_cliente`, `NOT NULL`, `ManyToOne`) e não há como compartilhá-lo: dois
   clientes com "furadeira Makita" são **duas linhas** em `equipamentos`, duas unidades reais,
-  cada uma com seu histórico de OS. Por isso **não existe unicidade** em `equipamentos` —
-  nem por nome, nem por `(nome, marca)`, nem dentro do mesmo cliente (a M2 pode ter duas
-  furadeiras iguais do mesmo dono). Quem dá identidade ao equipamento é o `id`, não o nome.
-  Esse é também o motivo de o dono ser imutável: transferir a linha reescreveria o histórico
-  da unidade errada.
+  cada uma com seu histórico de OS. Esse é também o motivo de o dono ser imutável: transferir
+  a linha reescreveria o histórico da unidade errada.
+- **Unicidade do equipamento: `(cliente, marca, nome)`** (case-insensitive, nome sem espaços
+  nas pontas). O mesmo nome pode se repetir em clientes diferentes, e no mesmo cliente desde
+  que a marca seja outra — mas um cliente não tem duas "Furadeira" da Makita, porque na
+  abertura da OS elas seriam indistinguíveis. Colisão responde 409, na criação e no `PUT`.
+  Garantido pelo índice `uq_equipamentos_cliente_marca_nome` (V21) e por uma pré-checagem no
+  service. Até a V20 não havia unicidade nenhuma em `equipamentos`.
 - **Serviço**: `ativo` e `contadorUso` não vêm do request — o primeiro muda pelos PATCH,
   o segundo é mantido pelas ordens de serviço. O par **(nome, valor) é único** no catálogo
   (case-insensitive): pode haver "Troca de tela" por 450 e outra por 320, mas não duas por

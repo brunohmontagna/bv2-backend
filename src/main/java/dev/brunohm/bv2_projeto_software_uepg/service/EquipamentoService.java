@@ -16,6 +16,7 @@ import dev.brunohm.bv2_projeto_software_uepg.dto.PaginaResponse;
 import dev.brunohm.bv2_projeto_software_uepg.dto.equipamento.EquipamentoAtualizacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.equipamento.EquipamentoCriacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.equipamento.EquipamentoResponse;
+import dev.brunohm.bv2_projeto_software_uepg.exception.RecursoDuplicadoException;
 import dev.brunohm.bv2_projeto_software_uepg.exception.RecursoNaoEncontradoException;
 import dev.brunohm.bv2_projeto_software_uepg.exception.RegraDeNegocioException;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ClienteRepository;
@@ -46,10 +47,18 @@ public class EquipamentoService {
                     "Nao e possivel cadastrar equipamento para um cliente inativo.");
         }
 
+        Marca marca = buscarMarca(request.marcaId());
+        String nome = request.nome().strip();
+
+        if (equipamentoRepository.existsByClienteIdAndMarcaIdAndNomeIgnoreCase(
+                cliente.getId(), marca.getId(), nome)) {
+            throw duplicado(nome, marca);
+        }
+
         Equipamento equipamento = equipamentoRepository.save(Equipamento.builder()
                 .cliente(cliente)
-                .marca(buscarMarca(request.marcaId()))
-                .nome(request.nome())
+                .marca(marca)
+                .nome(nome)
                 .build());
 
         return EquipamentoResponse.fromEntity(equipamento);
@@ -69,8 +78,16 @@ public class EquipamentoService {
     public EquipamentoResponse atualizar(Long id, EquipamentoAtualizacaoRequest request) {
         Equipamento equipamento = buscarEntidade(id);
 
-        equipamento.setMarca(buscarMarca(request.marcaId()));
-        equipamento.setNome(request.nome());
+        Marca marca = buscarMarca(request.marcaId());
+        String nome = request.nome().strip();
+
+        if (equipamentoRepository.existsByClienteIdAndMarcaIdAndNomeIgnoreCaseAndIdNot(
+                equipamento.getCliente().getId(), marca.getId(), nome, id)) {
+            throw duplicado(nome, marca);
+        }
+
+        equipamento.setMarca(marca);
+        equipamento.setNome(nome);
 
         return EquipamentoResponse.fromEntity(equipamentoRepository.save(equipamento));
     }
@@ -83,6 +100,15 @@ public class EquipamentoService {
     public void excluir(Long id) {
         equipamentoRepository.delete(buscarEntidade(id));
         equipamentoRepository.flush();
+    }
+
+    /**
+     * Pre-checagem do indice uq_equipamentos_cliente_marca_nome (V21), para a
+     * colisao comum responder com mensagem clara em vez do 409 generico do banco.
+     */
+    private RecursoDuplicadoException duplicado(String nome, Marca marca) {
+        return new RecursoDuplicadoException("O cliente ja possui um equipamento "
+                + nome + " da marca " + marca.getNome());
     }
 
     private Equipamento buscarEntidade(Long id) {
