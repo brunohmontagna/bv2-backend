@@ -28,4 +28,10 @@ public interface EquipamentoRepository
     @Override
     @EntityGraph(attributePaths = { "cliente", "marca" })
     Page<Equipamento> findAll(Specification<Equipamento> spec, Pageable pageable);
+
+    boolean existsByClienteIdAndMarcaIdAndNomeIgnoreCase(Long clienteId, Long marcaId, String nome);
+
+    /* Usado na atualizacao, para o equipamento nao colidir com ele mesmo. */
+    boolean existsByClienteIdAndMarcaIdAndNomeIgnoreCaseAndIdNot(
+            Long clienteId, Long marcaId, String nome, Long id);
 }
