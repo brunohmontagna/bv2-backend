@@ -70,7 +70,7 @@ public class OrdemServicoService {
 
         if (Boolean.FALSE.equals(cliente.getAtivo())) {
             throw new RegraDeNegocioException(
-                    "Nao e possivel abrir ordem de servico para um cliente inativo.");
+                    "Não é possível abrir ordem de serviço para um cliente inativo.");
         }
 
         OrdemServico ordemServico = ordemServicoRepository.save(OrdemServico.builder()
@@ -155,7 +155,7 @@ public class OrdemServicoService {
 
         if (itemOsRepository.existsByOrdemServicoId(id)) {
             throw new RegraDeNegocioException(
-                    "A ordem de servico possui itens. Remova os itens antes de exclui-la.");
+                    "A ordem de serviço possui itens. Remova os itens antes de excluí-la.");
         }
 
         ordemServicoRepository.delete(ordemServico);
@@ -200,16 +200,16 @@ public class OrdemServicoService {
             case EM_ANDAMENTO -> {
                 if (destino == StatusOs.ENTREGUE) {
                     throw new RegraDeNegocioException(
-                            "A ordem de servico precisa ser concluida antes de ser entregue.");
+                            "A ordem de serviço precisa ser concluída antes de ser entregue.");
                 }
             }
             case CONCLUIDA -> {
                 // CONCLUIDA aceita ENTREGUE e CANCELADA; nada a barrar.
             }
             case ENTREGUE -> throw new RegraDeNegocioException(
-                    "Ordem de servico ja entregue nao pode ter o status alterado.");
+                    "Ordem de serviço já entregue não pode ter o status alterado.");
             case CANCELADA -> throw new RegraDeNegocioException(
-                    "Ordem de servico cancelada nao pode ser reaberta.");
+                    "Ordem de serviço cancelada não pode ser reaberta.");
         }
 
         if (destino == StatusOs.CONCLUIDA) {
@@ -273,19 +273,19 @@ public class OrdemServicoService {
         Equipamento equipamento = buscarEquipamento(request.equipamentoId());
         if (!equipamento.getCliente().getId().equals(ordemServico.getCliente().getId())) {
             throw new RegraDeNegocioException(
-                    "O equipamento nao pertence ao cliente desta ordem de servico.");
+                    "O equipamento não pertence ao cliente desta ordem de serviço.");
         }
 
         Servico servico = buscarServico(request.servicoId());
         if (Boolean.FALSE.equals(servico.getAtivo())) {
             throw new RegraDeNegocioException(
-                    "Nao e possivel adicionar um servico inativo a ordem de servico.");
+                    "Não é possível adicionar um serviço inativo à ordem de serviço.");
         }
 
         if (itemOsRepository.existsByOrdemServicoIdAndEquipamentoIdAndServicoId(
                 ordemServico.getId(), equipamento.getId(), servico.getId())) {
             throw new RecursoDuplicadoException(
-                    "Este servico ja foi lancado para este equipamento nesta ordem de servico.");
+                    "Este serviço já foi lançado para este equipamento nesta ordem de serviço.");
         }
 
         ItemOs item = itemOsRepository.save(ItemOs.builder()
@@ -360,7 +360,7 @@ public class OrdemServicoService {
 
     private OrdemServico buscarEntidade(Long id) {
         return ordemServicoRepository.findById(id)
-                .orElseThrow(() -> RecursoNaoEncontradoException.de("Ordem de servico", id));
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Ordem de serviço", id));
     }
 
     /**
@@ -369,10 +369,10 @@ public class OrdemServicoService {
      */
     private ItemOs buscarItem(OrdemServico ordemServico, Long itemId) {
         ItemOs item = itemOsRepository.findById(itemId)
-                .orElseThrow(() -> RecursoNaoEncontradoException.de("Item da ordem de servico", itemId));
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Item da ordem de serviço", itemId));
 
         if (!item.getOrdemServico().getId().equals(ordemServico.getId())) {
-            throw RecursoNaoEncontradoException.de("Item da ordem de servico", itemId);
+            throw RecursoNaoEncontradoException.de("Item da ordem de serviço", itemId);
         }
         return item;
     }
@@ -384,7 +384,7 @@ public class OrdemServicoService {
 
     private Servico buscarServico(Long id) {
         return servicoRepository.findById(id)
-                .orElseThrow(() -> RecursoNaoEncontradoException.de("Servico", id));
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Serviço", id));
     }
 
     private Cliente buscarCliente(Long clienteId) {
@@ -396,7 +396,7 @@ public class OrdemServicoService {
     private void garantirEmAndamento(OrdemServico ordemServico, String acao) {
         if (ordemServico.getStatus() != StatusOs.EM_ANDAMENTO) {
             throw new RegraDeNegocioException(
-                    "So e possivel " + acao + " enquanto a ordem de servico esta EM_ANDAMENTO. Status atual: "
+                    "Só é possível " + acao + " enquanto a ordem de serviço está EM_ANDAMENTO. Status atual: "
                             + ordemServico.getStatus() + ".");
         }
     }

@@ -1,7 +1,7 @@
 {
 	"info": {
 		"name": "API REST BV2 | Projeto UEPG",
-		"description": "# API REST BV2 - Sistema de Ordens de Servico\n\nProjeto de Engenharia de Software - UEPG. Cliente real: **M2 Equipamentos** (Ponta Grossa/PR), assistencia tecnica de maquinas eletricas e mecanicas. A API controla clientes, equipamentos, catalogo de servicos, ordens de servico (OS) com itens, notificacoes automaticas por WhatsApp (via n8n), painel de indicadores e o cadastro de usuarios.\n\n**Spring Boot 4 | Java 21 | PostgreSQL + Flyway | Spring Security + JWT (java-jwt / Auth0) | springdoc-openapi**\n\n- **Base URL local:** `{{baseUrl}}` = `http://localhost:8080`\n- **Swagger UI:** `{{baseUrl}}/swagger-ui.html` - **OpenAPI:** `{{baseUrl}}/v3/api-docs` (publicos)\n- **Formato:** JSON (`Content-Type: application/json`) em todas as rotas; erros em `application/problem+json`\n\n---\n\n## Autenticacao\n\nJWT stateless no header `Authorization: Bearer <token>`, obtido em `POST /auth/login`. A collection aplica `{{tokenMaster}}` por padrao; requests especificos sobrescrevem com `{{tokenAdmin}}`, `{{tokenSenha}}`, `{{tokenEmail}}` ou *No Auth*.\n\n- Validade: `JWT_EXPIRACAO_MINUTOS` (padrao **120 min**); `expiraEm` vem na resposta do login.\n- Claims: `sub` = e-mail, `id`, `role`.\n- O token deixa de valer (401) quando: expira, o usuario e desativado, a senha e trocada/redefinida (tokens com `iat` anterior sao recusados) ou o e-mail e trocado (o subject muda).\n- **Rotas publicas:** `POST /auth/login`, `POST /auth/senha/esqueci`, `POST /auth/senha/redefinir`, `POST /auth/email/confirmar`, Swagger/OpenAPI. Todo o resto exige token.\n\n## Papeis\n\nQuem faz **login** e a equipe desenvolvedora (**MASTER**) e a M2 (**ADMIN**). Os dois operam o sistema por igual; a **unica** diferenca e que so o MASTER gerencia `/usuarios` (exceto `/usuarios/eu*`, aberto a qualquer autenticado).\n\n**Cliente nao e usuario.** `/clientes` sao os clientes da M2 - quem leva o equipamento. Eles **nao fazem login**.\n\n| Papel | /usuarios (cadastro) | /usuarios/eu* | Demais recursos |\n|---|---|---|---|\n| **MASTER** | sim | sim | tudo |\n| **ADMIN** | nao (403) | sim | tudo |\n\n- Usuario criado pela API nasce sempre **ADMIN**; MASTER e unico, semeado na migration e nao pode ser desativado.\n- Nao existe exclusao de usuario: desativar revoga o acesso na hora e preserva o historico.\n\n---\n\n## Convencoes\n\n**Paginacao.** Listagens aceitam `page` (base 0), `size` (padrao 20) e `sort=campo,asc|desc` e respondem o envelope proprio:\n\n```json\n{\n  \"conteudo\": [ ... ],\n  \"pagina\": 0,\n  \"tamanho\": 20,\n  \"totalElementos\": 42,\n  \"totalPaginas\": 3,\n  \"primeira\": true,\n  \"ultima\": false\n}\n```\n\nExcecoes sem paginacao: `GET /ordens-servico/{id}/itens`, `GET /notificacoes/templates`, `GET /notificacoes/placeholders`.\n\n**Criacao.** `POST` de recurso responde `201 Created` com o recurso no corpo e header `Location`.\n\n**Situacao.** Clientes, servicos e usuarios nao sao editados via `ativo` no corpo: usam `PATCH /{id}/ativar` e `PATCH /{id}/desativar`, ambos idempotentes. Transicoes de OS (`/concluir`, `/entregar`, `/cancelar`) tambem sao idempotentes.\n\n**Tipos.**\n| Tipo | Formato | Exemplo |\n|---|---|---|\n| Data (`LocalDate`) | `AAAA-MM-DD` | `2026-09-12` |\n| Data/hora (`LocalDateTime`) | ISO-8601 sem fuso (horario do servidor) | `2026-09-12T14:30:00.123` |\n| Instante (`Instant`) | ISO-8601 UTC | `2026-09-12T16:30:00Z` |\n| Dinheiro (`BigDecimal`) | numero JSON, ate 7 inteiros e 2 decimais, >= 0 | `1234.56` |\n| Telefone | somente digitos, 10 a 13 | `42988886690` |\n| Nomes | texto, max 50 | - |\n| Observacoes / descricoes | texto, max 500 | - |\n| Senha | 8 a 72 caracteres (limite do BCrypt) | - |\n\n**Enums.**\n| Enum | Valores |\n|---|---|\n| `StatusOs` | `EM_ANDAMENTO`, `CONCLUIDA`, `ENTREGUE`, `CANCELADA` |\n| `StatusNotificacao` | `PENDENTE`, `ENVIADO`, `FALHOU` |\n| `RoleUsuario` | `MASTER`, `ADMIN` |\n\n---\n\n## Regras de dominio\n\n**Ciclo de vida da OS**\n\n```\nEM_ANDAMENTO --concluir--> CONCLUIDA --entregar--> ENTREGUE (final)\n     |                         |\n     +--------cancelar---------+-----> CANCELADA (final)\n```\n\n- Nasce `EM_ANDAMENTO`, com ao menos um item (equipamento + servico). `dataConcluida`/`dataEntregue` sao gravadas pelas transicoes.\n- Entregar exige CONCLUIDA; ENTREGUE e CANCELADA nao mudam mais (422).\n- Observacao, itens e valor total so mudam enquanto `EM_ANDAMENTO` (422).\n- Excluir OS exige que ela esteja sem itens (422) e sem notificacoes (409).\n\n**Itens e valor total**\n- Equipamento do item precisa ser do mesmo cliente da OS; servico precisa estar ativo; o par equipamento + servico e unico por OS.\n- `valorTotal` automatico = soma dos servicos dos itens, recalculado a cada item. Enviar `valorTotal` (na criacao ou em `PATCH /valor-total`) congela o total com `valorTotalManual=true`; enviar `null` volta ao automatico.\n\n**Notificacoes WhatsApp**\n- Cada transicao efetiva de OS para `CONCLUIDA`, `ENTREGUE` ou `CANCELADA` gera uma notificacao, se o template daquele status estiver `ativo`.\n- O texto e renderizado com placeholders (`{cliente}`, `{os}`, `{valor}`, `{status}`, `{dataEntrada}`, `{dataConcluida}`, `{dataEntregue}`) e enviado ao webhook do n8n apos o commit; falha no n8n nao afeta a transicao e fica registrada como `FALHOU`.\n- O log (`GET /notificacoes`) guarda o texto exato enviado; editar o template nao reescreve o historico.\n\n**Credenciais**\n- Senha: `PUT /usuarios/eu/senha` (exige a atual) ou recuperacao por e-mail (`/auth/senha/esqueci` -> `/auth/senha/redefinir`).\n- E-mail: `PUT /usuarios/eu/email` (exige a senha) -> link no endereco novo -> `POST /auth/email/confirmar`.\n- Tokens de e-mail sao de uso unico, expiram (padrao 30 min) e erros de token sao sempre a mesma mensagem, para nao vazar informacao.\n\n---\n\n## Padrao de erros - ProblemDetail (RFC 7807)\n\nToda falha (inclusive 401/403 da cadeia de seguranca) sai no mesmo formato:\n\n```json\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados invalidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validacao.\",\n  \"instance\": \"/clientes\",\n  \"erros\": { \"telefone\": \"O telefone deve conter apenas digitos (10 a 13)\" },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}\n```\n\n`erros` (campo -> mensagem) so aparece em falhas de Bean Validation.\n\n| Status | title | Quando |\n|---|---|---|\n| **400** | Dados invalidos / Corpo da requisicao invalido / Parametro invalido | Bean Validation, JSON malformado, enum ou data invalida em query/path |\n| **401** | Credenciais invalidas / Nao autenticado | login incorreto; sem token, token invalido/expirado/revogado, usuario desativado |\n| **403** | Acesso negado | ADMIN no cadastro de usuarios |\n| **404** | Recurso nao encontrado | id inexistente; template de status que nao notifica |\n| **409** | Recurso duplicado / Conflito de integridade | nome/e-mail/item duplicado; exclusao barrada por FK `ON DELETE RESTRICT` |\n| **422** | Regra de negocio violada | cliente inativo, servico inativo, transicao de status invalida, OS fora de EM_ANDAMENTO, periodo invertido, senha/confirmacao/token invalidos, desativar o MASTER |\n| **500** | Erro interno | falha inesperada (logada no servidor) |\n\n---\n\n## Como rodar a collection\n\n1. Suba a aplicacao (`./mvnw spring-boot:run`) na porta 8080, com o banco migrado.\n2. Preencha `{{masterSenha}}` e rode **1. Autenticacao > Login (MASTER)** - o token vai para `{{tokenMaster}}`.\n3. Rode **9. Usuarios > Criar usuario ADMIN**, preencha `{{adminEmail}}`/`{{adminSenha}}` de um ADMIN existente e rode **Login (ADMIN)** (salva `{{tokenAdmin}}`) para os cenarios 403 e `/usuarios/eu`.\n4. As pastas 2 a 9 e 11 criam e limpam as proprias fixtures (ids salvos em variaveis da collection).\n5. **10. Painel** so le: rode depois das outras pastas ou com o banco ja povoado.\n6. **12. Senha** e **13. Email** tem um passo manual: cole em `{{tokenRecuperacao}}` / `{{tokenConfirmacaoEmail}}` o token recebido no link do e-mail antes dos requests marcados *COLE O TOKEN*.\n\nCada request traz na descricao o cenario que testa. O request **de referencia** de cada endpoint traz tambem a documentacao completa (parametros, corpo, regras, status) e **exemplos de resposta salvos**.\n\n---\n\n## Indice de endpoints (57)\n\n| Metodo | Rota | Acesso | O que faz | Pasta |\n|---|---|---|---|---|\n| `POST` | `/auth/login` | Publica | Autentica um usuario (MASTER ou ADMIN) e devolve o JWT. | 1. Autenticacao |\n| `POST` | `/auth/senha/esqueci` | Publica | Envia por e-mail um link para redefinir a senha. | 12. Senha |\n| `POST` | `/auth/senha/redefinir` | Publica | Redefine a senha usando o token recebido por e-mail. Nao pede a senha atual: o token prova a posse da conta. | 12. Senha |\n| `POST` | `/auth/email/confirmar` | Publica | Confirma a troca de e-mail pedida em `PUT /usuarios/eu/email`, usando o token enviado ao endereco NOVO. | 13. Email |\n| `GET` | `/usuarios/eu` | Autenticado | Devolve o usuario autenticado (o id vem do token). | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/eu` | Autenticado | Atualiza o nome do proprio usuario. | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/eu/senha` | Autenticado | Troca a senha do proprio usuario, exigindo a senha atual. | 12. Senha |\n| `PUT` | `/usuarios/eu/email` | Autenticado | Pede a troca do proprio e-mail. Nada muda ainda: um link vai para o endereco NOVO. | 13. Email |\n| `POST` | `/usuarios` | MASTER | Cadastra um usuario do sistema. Sempre nasce com papel ADMIN. | 9. Usuarios (MASTER) |\n| `GET` | `/usuarios` | MASTER | Lista os usuarios do sistema. | 9. Usuarios (MASTER) |\n| `GET` | `/usuarios/{id}` | MASTER | Busca um usuario pelo id. | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/{id}` | MASTER | Atualiza o nome de um usuario. | 9. Usuarios (MASTER) |\n| `PATCH` | `/usuarios/{id}/ativar` | MASTER | Reativa o usuario, devolvendo o acesso. Idempotente. | 9. Usuarios (MASTER) |\n| `PATCH` | `/usuarios/{id}/desativar` | MASTER | Revoga o acesso do usuario na hora, inclusive tokens ja emitidos. Idempotente. Nao ha exclusao definitiva de usuarios. | 9. Usuarios (MASTER) |\n| `POST` | `/clientes` | Autenticado | Cadastra um cliente da M2 (quem leva o equipamento). Cliente nao faz login. | 2. Clientes (CRUD) |\n| `GET` | `/clientes` | Autenticado | Lista clientes paginados, com filtros opcionais. | 2. Clientes (CRUD) |\n| `GET` | `/clientes/{id}` | Autenticado | Busca um cliente pelo id. | 2. Clientes (CRUD) |\n| `PUT` | `/clientes/{id}` | Autenticado | Atualiza nome e telefone. A situacao muda so pelos PATCH `/ativar` e `/desativar`. | 2. Clientes (CRUD) |\n| `PATCH` | `/clientes/{id}/desativar` | Autenticado | Inativa o cliente sem apagar o historico. Idempotente. | 2. Clientes (CRUD) |\n| `PATCH` | `/clientes/{id}/ativar` | Autenticado | Reativa o cliente. Idempotente. | 2. Clientes (CRUD) |\n| `DELETE` | `/clientes/{id}` | Autenticado | Remove definitivamente o cliente. Para o caso comum, prefira desativar. | 2. Clientes (CRUD) |\n| `POST` | `/marcas` | Autenticado | Cadastra uma marca de equipamento. | 4. Marcas (CRUD) |\n| `GET` | `/marcas` | Autenticado | Lista marcas paginadas. | 4. Marcas (CRUD) |\n| `GET` | `/marcas/{id}` | Autenticado | Busca uma marca pelo id. | 4. Marcas (CRUD) |\n| `PUT` | `/marcas/{id}` | Autenticado | Atualiza o nome da marca. | 4. Marcas (CRUD) |\n| `DELETE` | `/marcas/{id}` | Autenticado | Remove a marca. | 4. Marcas (CRUD) |\n| `POST` | `/servicos` | Autenticado | Cadastra um servico do catalogo da M2. | 5. Servicos (CRUD) |\n| `GET` | `/servicos` | Autenticado | Lista servicos paginados. | 5. Servicos (CRUD) |\n| `GET` | `/servicos/{id}` | Autenticado | Busca um servico pelo id. | 5. Servicos (CRUD) |\n| `PUT` | `/servicos/{id}` | Autenticado | Atualiza nome, descricao e valor. | 5. Servicos (CRUD) |\n| `PATCH` | `/servicos/{id}/desativar` | Autenticado | Inativa o servico sem apagar o historico. Idempotente. | 5. Servicos (CRUD) |\n| `PATCH` | `/servicos/{id}/ativar` | Autenticado | Reativa o servico. Idempotente. | 5. Servicos (CRUD) |\n| `DELETE` | `/servicos/{id}` | Autenticado | Remove definitivamente o servico. | 5. Servicos (CRUD) |\n| `POST` | `/equipamentos` | Autenticado | Cadastra um equipamento de um cliente da M2. | 6. Equipamentos (CRUD) |\n| `GET` | `/equipamentos` | Autenticado | Lista equipamentos paginados. | 6. Equipamentos (CRUD) |\n| `GET` | `/equipamentos/{id}` | Autenticado | Busca um equipamento pelo id. | 6. Equipamentos (CRUD) |\n| `PUT` | `/equipamentos/{id}` | Autenticado | Atualiza nome e marca. O cliente dono NAO entra no corpo: e imutavel. | 6. Equipamentos (CRUD) |\n| `DELETE` | `/equipamentos/{id}` | Autenticado | Remove definitivamente o equipamento. | 6. Equipamentos (CRUD) |\n| `POST` | `/ordens-servico` | Autenticado | Abre uma OS para um cliente da M2, ja com os itens (equipamento + servico). | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico` | Autenticado | Lista OS paginadas. | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico/{id}` | Autenticado | Busca uma OS pelo id (sem os itens; use `/itens`). | 7. OS (CRUD + Transição Status) |\n| `PUT` | `/ordens-servico/{id}` | Autenticado | Atualiza a observacao. Cliente, status e datas nao mudam por aqui. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/concluir` | Autenticado | Marca a OS como CONCLUIDA e grava `dataConcluida` = hoje. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/entregar` | Autenticado | Marca a OS como ENTREGUE e grava `dataEntregue` = hoje. Exige CONCLUIDA antes. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/cancelar` | Autenticado | Cancela a OS. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/valor-total` | Autenticado | Fixa o valor total a mao (desconto, preco fechado) ou volta ao calculo automatico. | 7. OS (CRUD + Transição Status) |\n| `DELETE` | `/ordens-servico/{id}` | Autenticado | Remove definitivamente a OS. | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico/{id}/itens` | Autenticado | Lista os itens da OS. Sem paginacao. | 8. Itens OS |\n| `POST` | `/ordens-servico/{id}/itens` | Autenticado | Adiciona um item (equipamento + servico) e recalcula o `valorTotal` (se automatico). | 8. Itens OS |\n| `PUT` | `/ordens-servico/{id}/itens/{itemId}` | Autenticado | Atualiza a observacao do item. Equipamento e servico sao a chave do item: para troca-los, remova e adicione outro. | 8. Itens OS |\n| `DELETE` | `/ordens-servico/{id}/itens/{itemId}` | Autenticado | Remove o item e recalcula o `valorTotal` (se automatico). | 8. Itens OS |\n| `GET` | `/painel` | Autenticado | Indicadores consolidados da operacao (dashboard). So leitura. | 10. Painel |\n| `GET` | `/notificacoes` | Autenticado | Log paginado dos envios de WhatsApp. So leitura: quem escreve e o sistema. | 11. Notificações |\n| `GET` | `/notificacoes/{id}` | Autenticado | Busca um envio, com o texto exato enviado ao cliente (template ja renderizado). | 11. Notificações |\n| `GET` | `/notificacoes/templates` | Autenticado | Lista os templates configuraveis: um por status que notifica (`CONCLUIDA`, `ENTREGUE`, `CANCELADA`). | 11. Notificações |\n| `GET` | `/notificacoes/placeholders` | Autenticado | Lista os placeholders aceitos no conteudo do template, com descricao e exemplo. | 11. Notificações |\n| `PUT` | `/notificacoes/templates/{statusOs}` | Autenticado | Define o texto e liga/desliga a notificacao automatica de um status. | 11. Notificações |\n",
+		"description": "# API REST BV2 - Sistema de Ordens de Servico\n\nProjeto de Engenharia de Software - UEPG. Cliente real: **M2 Equipamentos** (Ponta Grossa/PR), assistencia tecnica de maquinas eletricas e mecanicas. A API controla clientes, equipamentos, catalogo de servicos, ordens de servico (OS) com itens, notificacoes automaticas por WhatsApp (via n8n), painel de indicadores e o cadastro de usuarios.\n\n**Spring Boot 4 | Java 21 | PostgreSQL + Flyway | Spring Security + JWT (java-jwt / Auth0) | springdoc-openapi**\n\n- **Base URL local:** `{{baseUrl}}` = `http://localhost:8080`\n- **Swagger UI:** `{{baseUrl}}/swagger-ui.html` - **OpenAPI:** `{{baseUrl}}/v3/api-docs` (publicos)\n- **Formato:** JSON (`Content-Type: application/json`) em todas as rotas; erros em `application/problem+json`\n\n---\n\n## Autenticacao\n\nJWT stateless no header `Authorization: Bearer <token>`, obtido em `POST /auth/login`. A collection aplica `{{tokenMaster}}` por padrao; requests especificos sobrescrevem com `{{tokenAdmin}}`, `{{tokenSenha}}`, `{{tokenEmail}}` ou *No Auth*.\n\n- Validade: `JWT_EXPIRACAO_MINUTOS` (padrao **120 min**); `expiraEm` vem na resposta do login.\n- Claims: `sub` = e-mail, `id`, `role`.\n- O token deixa de valer (401) quando: expira, o usuario e desativado, a senha e trocada/redefinida (tokens com `iat` anterior sao recusados) ou o e-mail e trocado (o subject muda).\n- **Rotas publicas:** `POST /auth/login`, `POST /auth/senha/esqueci`, `POST /auth/senha/redefinir`, `POST /auth/email/confirmar`, Swagger/OpenAPI. Todo o resto exige token.\n\n## Papeis\n\nQuem faz **login** e a equipe desenvolvedora (**MASTER**) e a M2 (**ADMIN**). Os dois operam o sistema por igual; a **unica** diferenca e que so o MASTER gerencia `/usuarios` (exceto `/usuarios/eu*`, aberto a qualquer autenticado).\n\n**Cliente nao e usuario.** `/clientes` sao os clientes da M2 - quem leva o equipamento. Eles **nao fazem login**.\n\n| Papel | /usuarios (cadastro) | /usuarios/eu* | Demais recursos |\n|---|---|---|---|\n| **MASTER** | sim | sim | tudo |\n| **ADMIN** | nao (403) | sim | tudo |\n\n- Usuario criado pela API nasce sempre **ADMIN**; MASTER e unico, semeado na migration e nao pode ser desativado.\n- Nao existe exclusao de usuario: desativar revoga o acesso na hora e preserva o historico.\n\n---\n\n## Convencoes\n\n**Paginacao.** Listagens aceitam `page` (base 0), `size` (padrao 20) e `sort=campo,asc|desc` e respondem o envelope proprio:\n\n```json\n{\n  \"conteudo\": [ ... ],\n  \"pagina\": 0,\n  \"tamanho\": 20,\n  \"totalElementos\": 42,\n  \"totalPaginas\": 3,\n  \"primeira\": true,\n  \"ultima\": false\n}\n```\n\nExcecoes sem paginacao: `GET /ordens-servico/{id}/itens`, `GET /notificacoes/templates`, `GET /notificacoes/placeholders`.\n\n**Criacao.** `POST` de recurso responde `201 Created` com o recurso no corpo e header `Location`.\n\n**Situacao.** Clientes, servicos e usuarios nao sao editados via `ativo` no corpo: usam `PATCH /{id}/ativar` e `PATCH /{id}/desativar`, ambos idempotentes. Transicoes de OS (`/concluir`, `/entregar`, `/cancelar`) tambem sao idempotentes.\n\n**Tipos.**\n| Tipo | Formato | Exemplo |\n|---|---|---|\n| Data (`LocalDate`) | `AAAA-MM-DD` | `2026-09-12` |\n| Data/hora (`LocalDateTime`) | ISO-8601 sem fuso (horario do servidor) | `2026-09-12T14:30:00.123` |\n| Instante (`Instant`) | ISO-8601 UTC | `2026-09-12T16:30:00Z` |\n| Dinheiro (`BigDecimal`) | numero JSON, ate 7 inteiros e 2 decimais, >= 0 | `1234.56` |\n| Telefone | somente digitos, 10 a 13 | `42988886690` |\n| Nomes | texto, max 50 | - |\n| Observacoes / descricoes | texto, max 500 | - |\n| Senha | 8 a 72 caracteres (limite do BCrypt) | - |\n\n**Enums.**\n| Enum | Valores |\n|---|---|\n| `StatusOs` | `EM_ANDAMENTO`, `CONCLUIDA`, `ENTREGUE`, `CANCELADA` |\n| `StatusNotificacao` | `PENDENTE`, `ENVIADO`, `FALHOU` |\n| `RoleUsuario` | `MASTER`, `ADMIN` |\n\n---\n\n## Regras de dominio\n\n**Ciclo de vida da OS**\n\n```\nEM_ANDAMENTO --concluir--> CONCLUIDA --entregar--> ENTREGUE (final)\n     |                         |\n     +--------cancelar---------+-----> CANCELADA (final)\n```\n\n- Nasce `EM_ANDAMENTO`, com ao menos um item (equipamento + servico). `dataConcluida`/`dataEntregue` sao gravadas pelas transicoes.\n- Entregar exige CONCLUIDA; ENTREGUE e CANCELADA nao mudam mais (422).\n- Observacao, itens e valor total so mudam enquanto `EM_ANDAMENTO` (422).\n- Excluir OS exige que ela esteja sem itens (422) e sem notificacoes (409).\n\n**Itens e valor total**\n- Equipamento do item precisa ser do mesmo cliente da OS; servico precisa estar ativo; o par equipamento + servico e unico por OS.\n- `valorTotal` automatico = soma dos servicos dos itens, recalculado a cada item. Enviar `valorTotal` (na criacao ou em `PATCH /valor-total`) congela o total com `valorTotalManual=true`; enviar `null` volta ao automatico.\n\n**Notificacoes WhatsApp**\n- Cada transicao efetiva de OS para `CONCLUIDA`, `ENTREGUE` ou `CANCELADA` gera uma notificacao, se o template daquele status estiver `ativo`.\n- O texto e renderizado com placeholders (`{cliente}`, `{os}`, `{valor}`, `{status}`, `{dataEntrada}`, `{dataConcluida}`, `{dataEntregue}`) e enviado ao webhook do n8n apos o commit; falha no n8n nao afeta a transicao e fica registrada como `FALHOU`.\n- O log (`GET /notificacoes`) guarda o texto exato enviado; editar o template nao reescreve o historico.\n\n**Credenciais**\n- Senha: `PUT /usuarios/eu/senha` (exige a atual) ou recuperacao por e-mail (`/auth/senha/esqueci` -> `/auth/senha/redefinir`).\n- E-mail: `PUT /usuarios/eu/email` (exige a senha) -> link no endereco novo -> `POST /auth/email/confirmar`.\n- Tokens de e-mail sao de uso unico, expiram (padrao 30 min) e erros de token sao sempre a mesma mensagem, para nao vazar informacao.\n\n---\n\n## Padrao de erros - ProblemDetail (RFC 7807)\n\nToda falha (inclusive 401/403 da cadeia de seguranca) sai no mesmo formato:\n\n```json\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados inválidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validação.\",\n  \"instance\": \"/clientes\",\n  \"erros\": { \"telefone\": \"O telefone deve conter apenas dígitos (10 a 13)\" },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}\n```\n\n`erros` (campo -> mensagem) aparece em falhas de Bean Validation (400) e nos 422 de regra presa a um campo (ex.: `senhaNova` igual a atual na redefinicao).\n\n| Status | title | Quando |\n|---|---|---|\n| **400** | Dados invalidos / Corpo da requisicao invalido / Parametro invalido | Bean Validation, JSON malformado, enum ou data invalida em query/path |\n| **401** | Credenciais invalidas / Nao autenticado | login incorreto; sem token, token invalido/expirado/revogado, usuario desativado |\n| **403** | Acesso negado | ADMIN no cadastro de usuarios |\n| **404** | Recurso nao encontrado | id inexistente; template de status que nao notifica |\n| **409** | Recurso duplicado / Conflito de integridade | nome/e-mail/item duplicado; exclusao barrada por FK `ON DELETE RESTRICT` |\n| **422** | Regra de negocio violada | cliente inativo, servico inativo, transicao de status invalida, OS fora de EM_ANDAMENTO, periodo invertido, senha/confirmacao/token invalidos, desativar o MASTER |\n| **500** | Erro interno | falha inesperada (logada no servidor) |\n\n---\n\n## Como rodar a collection\n\n1. Suba a aplicacao (`./mvnw spring-boot:run`) na porta 8080, com o banco migrado.\n2. Preencha `{{masterSenha}}` e rode **1. Autenticacao > Login (MASTER)** - o token vai para `{{tokenMaster}}`.\n3. Rode **9. Usuarios > Criar usuario ADMIN**, preencha `{{adminEmail}}`/`{{adminSenha}}` de um ADMIN existente e rode **Login (ADMIN)** (salva `{{tokenAdmin}}`) para os cenarios 403 e `/usuarios/eu`.\n4. As pastas 2 a 9 e 11 criam e limpam as proprias fixtures (ids salvos em variaveis da collection).\n5. **10. Painel** so le: rode depois das outras pastas ou com o banco ja povoado.\n6. **12. Senha** e **13. Email** tem um passo manual: cole em `{{tokenRecuperacao}}` / `{{tokenConfirmacaoEmail}}` o token recebido no link do e-mail antes dos requests marcados *COLE O TOKEN*.\n\nCada request traz na descricao o cenario que testa. O request **de referencia** de cada endpoint traz tambem a documentacao completa (parametros, corpo, regras, status) e **exemplos de resposta salvos**.\n\n---\n\n## Indice de endpoints (57)\n\n| Metodo | Rota | Acesso | O que faz | Pasta |\n|---|---|---|---|---|\n| `POST` | `/auth/login` | Publica | Autentica um usuario (MASTER ou ADMIN) e devolve o JWT. | 1. Autenticacao |\n| `POST` | `/auth/senha/esqueci` | Publica | Envia por e-mail um link para redefinir a senha. | 12. Senha |\n| `POST` | `/auth/senha/redefinir` | Publica | Redefine a senha usando o token recebido por e-mail. Nao pede a senha atual: o token prova a posse da conta. | 12. Senha |\n| `POST` | `/auth/email/confirmar` | Publica | Confirma a troca de e-mail pedida em `PUT /usuarios/eu/email`, usando o token enviado ao endereco NOVO. | 13. Email |\n| `GET` | `/usuarios/eu` | Autenticado | Devolve o usuario autenticado (o id vem do token). | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/eu` | Autenticado | Atualiza o nome do proprio usuario. | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/eu/senha` | Autenticado | Troca a senha do proprio usuario, exigindo a senha atual. | 12. Senha |\n| `PUT` | `/usuarios/eu/email` | Autenticado | Pede a troca do proprio e-mail. Nada muda ainda: um link vai para o endereco NOVO. | 13. Email |\n| `POST` | `/usuarios` | MASTER | Cadastra um usuario do sistema. Sempre nasce com papel ADMIN. | 9. Usuarios (MASTER) |\n| `GET` | `/usuarios` | MASTER | Lista os usuarios do sistema. | 9. Usuarios (MASTER) |\n| `GET` | `/usuarios/{id}` | MASTER | Busca um usuario pelo id. | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/{id}` | MASTER | Atualiza o nome de um usuario. | 9. Usuarios (MASTER) |\n| `PATCH` | `/usuarios/{id}/ativar` | MASTER | Reativa o usuario, devolvendo o acesso. Idempotente. | 9. Usuarios (MASTER) |\n| `PATCH` | `/usuarios/{id}/desativar` | MASTER | Revoga o acesso do usuario na hora, inclusive tokens ja emitidos. Idempotente. Nao ha exclusao definitiva de usuarios. | 9. Usuarios (MASTER) |\n| `POST` | `/clientes` | Autenticado | Cadastra um cliente da M2 (quem leva o equipamento). Cliente nao faz login. | 2. Clientes (CRUD) |\n| `GET` | `/clientes` | Autenticado | Lista clientes paginados, com filtros opcionais. | 2. Clientes (CRUD) |\n| `GET` | `/clientes/{id}` | Autenticado | Busca um cliente pelo id. | 2. Clientes (CRUD) |\n| `PUT` | `/clientes/{id}` | Autenticado | Atualiza nome e telefone. A situacao muda so pelos PATCH `/ativar` e `/desativar`. | 2. Clientes (CRUD) |\n| `PATCH` | `/clientes/{id}/desativar` | Autenticado | Inativa o cliente sem apagar o historico. Idempotente. | 2. Clientes (CRUD) |\n| `PATCH` | `/clientes/{id}/ativar` | Autenticado | Reativa o cliente. Idempotente. | 2. Clientes (CRUD) |\n| `DELETE` | `/clientes/{id}` | Autenticado | Remove definitivamente o cliente. Para o caso comum, prefira desativar. | 2. Clientes (CRUD) |\n| `POST` | `/marcas` | Autenticado | Cadastra uma marca de equipamento. | 4. Marcas (CRUD) |\n| `GET` | `/marcas` | Autenticado | Lista marcas paginadas. | 4. Marcas (CRUD) |\n| `GET` | `/marcas/{id}` | Autenticado | Busca uma marca pelo id. | 4. Marcas (CRUD) |\n| `PUT` | `/marcas/{id}` | Autenticado | Atualiza o nome da marca. | 4. Marcas (CRUD) |\n| `DELETE` | `/marcas/{id}` | Autenticado | Remove a marca. | 4. Marcas (CRUD) |\n| `POST` | `/servicos` | Autenticado | Cadastra um servico do catalogo da M2. | 5. Servicos (CRUD) |\n| `GET` | `/servicos` | Autenticado | Lista servicos paginados. | 5. Servicos (CRUD) |\n| `GET` | `/servicos/{id}` | Autenticado | Busca um servico pelo id. | 5. Servicos (CRUD) |\n| `PUT` | `/servicos/{id}` | Autenticado | Atualiza nome, descricao e valor. | 5. Servicos (CRUD) |\n| `PATCH` | `/servicos/{id}/desativar` | Autenticado | Inativa o servico sem apagar o historico. Idempotente. | 5. Servicos (CRUD) |\n| `PATCH` | `/servicos/{id}/ativar` | Autenticado | Reativa o servico. Idempotente. | 5. Servicos (CRUD) |\n| `DELETE` | `/servicos/{id}` | Autenticado | Remove definitivamente o servico. | 5. Servicos (CRUD) |\n| `POST` | `/equipamentos` | Autenticado | Cadastra um equipamento de um cliente da M2. | 6. Equipamentos (CRUD) |\n| `GET` | `/equipamentos` | Autenticado | Lista equipamentos paginados. | 6. Equipamentos (CRUD) |\n| `GET` | `/equipamentos/{id}` | Autenticado | Busca um equipamento pelo id. | 6. Equipamentos (CRUD) |\n| `PUT` | `/equipamentos/{id}` | Autenticado | Atualiza nome e marca. O cliente dono NAO entra no corpo: e imutavel. | 6. Equipamentos (CRUD) |\n| `DELETE` | `/equipamentos/{id}` | Autenticado | Remove definitivamente o equipamento. | 6. Equipamentos (CRUD) |\n| `POST` | `/ordens-servico` | Autenticado | Abre uma OS para um cliente da M2, ja com os itens (equipamento + servico). | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico` | Autenticado | Lista OS paginadas. | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico/{id}` | Autenticado | Busca uma OS pelo id (sem os itens; use `/itens`). | 7. OS (CRUD + Transição Status) |\n| `PUT` | `/ordens-servico/{id}` | Autenticado | Atualiza a observacao. Cliente, status e datas nao mudam por aqui. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/concluir` | Autenticado | Marca a OS como CONCLUIDA e grava `dataConcluida` = hoje. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/entregar` | Autenticado | Marca a OS como ENTREGUE e grava `dataEntregue` = hoje. Exige CONCLUIDA antes. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/cancelar` | Autenticado | Cancela a OS. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/valor-total` | Autenticado | Fixa o valor total a mao (desconto, preco fechado) ou volta ao calculo automatico. | 7. OS (CRUD + Transição Status) |\n| `DELETE` | `/ordens-servico/{id}` | Autenticado | Remove definitivamente a OS. | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico/{id}/itens` | Autenticado | Lista os itens da OS. Sem paginacao. | 8. Itens OS |\n| `POST` | `/ordens-servico/{id}/itens` | Autenticado | Adiciona um item (equipamento + servico) e recalcula o `valorTotal` (se automatico). | 8. Itens OS |\n| `PUT` | `/ordens-servico/{id}/itens/{itemId}` | Autenticado | Atualiza a observacao do item. Equipamento e servico sao a chave do item: para troca-los, remova e adicione outro. | 8. Itens OS |\n| `DELETE` | `/ordens-servico/{id}/itens/{itemId}` | Autenticado | Remove o item e recalcula o `valorTotal` (se automatico). | 8. Itens OS |\n| `GET` | `/painel` | Autenticado | Indicadores consolidados da operacao (dashboard). So leitura. | 10. Painel |\n| `GET` | `/notificacoes` | Autenticado | Log paginado dos envios de WhatsApp. So leitura: quem escreve e o sistema. | 11. Notificações |\n| `GET` | `/notificacoes/{id}` | Autenticado | Busca um envio, com o texto exato enviado ao cliente (template ja renderizado). | 11. Notificações |\n| `GET` | `/notificacoes/templates` | Autenticado | Lista os templates configuraveis: um por status que notifica (`CONCLUIDA`, `ENTREGUE`, `CANCELADA`). | 11. Notificações |\n| `GET` | `/notificacoes/placeholders` | Autenticado | Lista os placeholders aceitos no conteudo do template, com descricao e exemplo. | 11. Notificações |\n| `PUT` | `/notificacoes/templates/{statusOs}` | Autenticado | Define o texto e liga/desliga a notificacao automatica de um status. | 11. Notificações |\n",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_postman_id": "a795aca7-1a01-41f7-93db-c9fc32622a16"
 	},
@@ -137,7 +137,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados invalidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validacao.\",\n  \"instance\": \"/auth/login\",\n  \"erros\": {\n    \"email\": \"E-mail em formato invalido\",\n    \"senha\": \"A senha e obrigatoria\"\n  },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados inválidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validação.\",\n  \"instance\": \"/auth/login\",\n  \"erros\": {\n    \"email\": \"E-mail em formato inválido\",\n    \"senha\": \"A senha é obrigatória\"\n  },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						},
 						{
 							"name": "401 - Credenciais invalidas",
@@ -179,7 +179,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Credenciais invalidas\",\n  \"status\": 401,\n  \"detail\": \"E-mail ou senha incorretos.\",\n  \"instance\": \"/auth/login\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Credenciais inválidas\",\n  \"status\": 401,\n  \"detail\": \"E-mail ou senha incorretos.\",\n  \"instance\": \"/auth/login\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -425,7 +425,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados invalidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validacao.\",\n  \"instance\": \"/clientes\",\n  \"erros\": {\n    \"nome\": \"O nome e obrigatorio\",\n    \"telefone\": \"O telefone deve conter apenas digitos (10 a 13)\"\n  },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados inválidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validação.\",\n  \"instance\": \"/clientes\",\n  \"erros\": {\n    \"nome\": \"O nome é obrigatório\",\n    \"telefone\": \"O telefone deve conter apenas dígitos (10 a 13)\"\n  },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						},
 						{
 							"name": "401 - Sem token",
@@ -466,7 +466,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Nao autenticado\",\n  \"status\": 401,\n  \"detail\": \"Autenticacao necessaria.\",\n  \"instance\": \"/clientes\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Não autenticado\",\n  \"status\": 401,\n  \"detail\": \"Autenticação necessária.\",\n  \"instance\": \"/clientes\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -697,7 +697,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso nao encontrado\",\n  \"status\": 404,\n  \"detail\": \"Cliente nao encontrado(a) para o id 999999\",\n  \"instance\": \"/clientes/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso não encontrado\",\n  \"status\": 404,\n  \"detail\": \"Cliente não encontrado(a) para o id 999999\",\n  \"instance\": \"/clientes/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -1000,7 +1000,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Conflito de integridade\",\n  \"status\": 409,\n  \"detail\": \"A operacao viola uma restricao do banco de dados. Verifique se o registro ja existe ou se possui vinculos que impedem a exclusao.\",\n  \"instance\": \"/clientes/1\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Conflito de integridade\",\n  \"status\": 409,\n  \"detail\": \"A operação viola uma restrição do banco de dados. Verifique se o registro já existe ou se possui vínculos que impedem a exclusão.\",\n  \"instance\": \"/clientes/1\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -1290,7 +1290,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso duplicado\",\n  \"status\": 409,\n  \"detail\": \"Ja existe uma marca com o nome Makita\",\n  \"instance\": \"/marcas\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso duplicado\",\n  \"status\": 409,\n  \"detail\": \"Já existe uma marca com o nome Makita\",\n  \"instance\": \"/marcas\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -1528,7 +1528,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso nao encontrado\",\n  \"status\": 404,\n  \"detail\": \"Marca nao encontrado(a) para o id 999999\",\n  \"instance\": \"/marcas/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso não encontrado\",\n  \"status\": 404,\n  \"detail\": \"Marca não encontrado(a) para o id 999999\",\n  \"instance\": \"/marcas/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -1839,7 +1839,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Conflito de integridade\",\n  \"status\": 409,\n  \"detail\": \"A operacao viola uma restricao do banco de dados. Verifique se o registro ja existe ou se possui vinculos que impedem a exclusao.\",\n  \"instance\": \"/marcas/3\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Conflito de integridade\",\n  \"status\": 409,\n  \"detail\": \"A operação viola uma restrição do banco de dados. Verifique se o registro já existe ou se possui vínculos que impedem a exclusão.\",\n  \"instance\": \"/marcas/3\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -1978,7 +1978,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados invalidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validacao.\",\n  \"instance\": \"/servicos\",\n  \"erros\": {\n    \"valor\": \"O valor nao pode ser negativo\"\n  },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados inválidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validação.\",\n  \"instance\": \"/servicos\",\n  \"erros\": {\n    \"valor\": \"O valor não pode ser negativo\"\n  },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						},
 						{
 							"name": "409 - Nome e valor duplicados",
@@ -2019,7 +2019,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso duplicado\",\n  \"status\": 409,\n  \"detail\": \"Ja existe um servico 'Troca de rolamento' com o valor 180.00. Diferencie o nome ou o valor.\",\n  \"instance\": \"/servicos\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso duplicado\",\n  \"status\": 409,\n  \"detail\": \"Já existe um serviço 'Troca de rolamento' com o valor 180.00. Diferencie o nome ou o valor.\",\n  \"instance\": \"/servicos\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -2262,7 +2262,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso nao encontrado\",\n  \"status\": 404,\n  \"detail\": \"Servico nao encontrado(a) para o id 999999\",\n  \"instance\": \"/servicos/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso não encontrado\",\n  \"status\": 404,\n  \"detail\": \"Serviço não encontrado(a) para o id 999999\",\n  \"instance\": \"/servicos/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -2759,7 +2759,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso nao encontrado\",\n  \"status\": 404,\n  \"detail\": \"Marca nao encontrado(a) para o id 999999\",\n  \"instance\": \"/equipamentos\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso não encontrado\",\n  \"status\": 404,\n  \"detail\": \"Marca não encontrado(a) para o id 999999\",\n  \"instance\": \"/equipamentos\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						},
 						{
 							"name": "422 - Cliente inativo",
@@ -2800,7 +2800,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"Nao e possivel cadastrar equipamento para um cliente inativo.\",\n  \"instance\": \"/equipamentos\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"Não é possível cadastrar equipamento para um cliente inativo.\",\n  \"instance\": \"/equipamentos\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -3759,7 +3759,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados invalidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validacao.\",\n  \"instance\": \"/ordens-servico\",\n  \"erros\": {\n    \"itens\": \"A ordem de servico precisa ter ao menos um item\"\n  },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados inválidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validação.\",\n  \"instance\": \"/ordens-servico\",\n  \"erros\": {\n    \"itens\": \"A ordem de serviço precisa ter ao menos um item\"\n  },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						},
 						{
 							"name": "422 - Equipamento de outro cliente",
@@ -3800,7 +3800,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"O equipamento nao pertence ao cliente desta ordem de servico.\",\n  \"instance\": \"/ordens-servico\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"O equipamento não pertence ao cliente desta ordem de serviço.\",\n  \"instance\": \"/ordens-servico\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -3870,7 +3870,7 @@
 									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
 									"const b = pm.response.json();",
 									"pm.test('mapa de erros aponta o campo itens', () => {",
-									"    pm.expect(b.title).to.eql('Dados invalidos');",
+									"    pm.expect(b.title).to.eql('Dados inválidos');",
 									"    pm.expect(b.erros).to.have.property('itens');",
 									"});"
 								]
@@ -3919,7 +3919,7 @@
 									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
 									"const b = pm.response.json();",
 									"pm.test('mapa de erros aponta o campo itens', () => {",
-									"    pm.expect(b.title).to.eql('Dados invalidos');",
+									"    pm.expect(b.title).to.eql('Dados inválidos');",
 									"    pm.expect(b.erros).to.have.property('itens');",
 									"});"
 								]
@@ -4259,7 +4259,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Parametro invalido\",\n  \"status\": 400,\n  \"detail\": \"O valor 'INVENTADO' nao e valido para o parametro 'status'.\",\n  \"instance\": \"/ordens-servico\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Parâmetro inválido\",\n  \"status\": 400,\n  \"detail\": \"O valor 'INVENTADO' não é válido para o parâmetro 'status'.\",\n  \"instance\": \"/ordens-servico\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -4438,7 +4438,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso nao encontrado\",\n  \"status\": 404,\n  \"detail\": \"Ordem de servico nao encontrado(a) para o id 999999\",\n  \"instance\": \"/ordens-servico/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso não encontrado\",\n  \"status\": 404,\n  \"detail\": \"Ordem de serviço não encontrado(a) para o id 999999\",\n  \"instance\": \"/ordens-servico/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -4571,7 +4571,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"So e possivel editar enquanto a ordem de servico esta EM_ANDAMENTO. Status atual: CONCLUIDA.\",\n  \"instance\": \"/ordens-servico/34\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"Só é possível editar enquanto a ordem de serviço está EM_ANDAMENTO. Status atual: CONCLUIDA.\",\n  \"instance\": \"/ordens-servico/34\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -4620,8 +4620,8 @@
 									"pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
 									"const b = pm.response.json();",
 									"pm.test('regra de negocio, com mensagem util', () => {",
-									"    pm.expect(b.title).to.eql('Regra de negocio violada');",
-									"    pm.expect(b.detail).to.include('concluida antes');",
+									"    pm.expect(b.title).to.eql('Regra de negócio violada');",
+									"    pm.expect(b.detail).to.include('concluída antes');",
 									"});"
 								]
 							}
@@ -4704,7 +4704,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"Ordem de servico cancelada nao pode ser reaberta.\",\n  \"instance\": \"/ordens-servico/34/concluir\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"Ordem de serviço cancelada não pode ser reaberta.\",\n  \"instance\": \"/ordens-servico/34/concluir\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -4849,7 +4849,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"A ordem de servico precisa ser concluida antes de ser entregue.\",\n  \"instance\": \"/ordens-servico/34/entregar\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"A ordem de serviço precisa ser concluída antes de ser entregue.\",\n  \"instance\": \"/ordens-servico/34/entregar\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -4898,7 +4898,7 @@
 								"exec": [
 									"pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
 									"pm.test('mensagem de OS ja entregue', () => {",
-									"    pm.expect(pm.response.json().detail).to.include('ja entregue');",
+									"    pm.expect(pm.response.json().detail).to.include('já entregue');",
 									"});"
 								]
 							}
@@ -4981,7 +4981,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"Ordem de servico ja entregue nao pode ter o status alterado.\",\n  \"instance\": \"/ordens-servico/34/cancelar\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"Ordem de serviço já entregue não pode ter o status alterado.\",\n  \"instance\": \"/ordens-servico/34/cancelar\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -5061,7 +5061,7 @@
 								"exec": [
 									"pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
 									"pm.test('ProblemDetail de autenticacao', () => {",
-									"    pm.expect(pm.response.json().title).to.eql('Nao autenticado');",
+									"    pm.expect(pm.response.json().title).to.eql('Não autenticado');",
 									"});"
 								]
 							}
@@ -5095,7 +5095,7 @@
 								"exec": [
 									"pm.test('404 Not Found', () => pm.response.to.have.status(404));",
 									"pm.test('ProblemDetail de recurso nao encontrado', () => {",
-									"    pm.expect(pm.response.json().title).to.eql('Recurso nao encontrado');",
+									"    pm.expect(pm.response.json().title).to.eql('Recurso não encontrado');",
 									"});"
 								]
 							}
@@ -5134,7 +5134,7 @@
 								"exec": [
 									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
 									"pm.test('aponta o parametro invalido', () => {",
-									"    pm.expect(pm.response.json().title).to.eql('Parametro invalido');",
+									"    pm.expect(pm.response.json().title).to.eql('Parâmetro inválido');",
 									"});"
 								]
 							}
@@ -5209,7 +5209,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"A ordem de servico possui itens. Remova os itens antes de exclui-la.\",\n  \"instance\": \"/ordens-servico/34\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"A ordem de serviço possui itens. Remova os itens antes de excluí-la.\",\n  \"instance\": \"/ordens-servico/34\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -5397,7 +5397,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso duplicado\",\n  \"status\": 409,\n  \"detail\": \"Este servico ja foi lancado para este equipamento nesta ordem de servico.\",\n  \"instance\": \"/ordens-servico/34/itens\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso duplicado\",\n  \"status\": 409,\n  \"detail\": \"Este serviço já foi lançado para este equipamento nesta ordem de serviço.\",\n  \"instance\": \"/ordens-servico/34/itens\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						},
 						{
 							"name": "422 - Servico inativo",
@@ -5440,7 +5440,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"Nao e possivel adicionar um servico inativo a ordem de servico.\",\n  \"instance\": \"/ordens-servico/34/itens\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"Não é possível adicionar um serviço inativo à ordem de serviço.\",\n  \"instance\": \"/ordens-servico/34/itens\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -5777,7 +5777,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso nao encontrado\",\n  \"status\": 404,\n  \"detail\": \"Item da ordem de servico nao encontrado(a) para o id 999999\",\n  \"instance\": \"/ordens-servico/34/itens/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso não encontrado\",\n  \"status\": 404,\n  \"detail\": \"Item da ordem de serviço não encontrado(a) para o id 999999\",\n  \"instance\": \"/ordens-servico/34/itens/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -5889,7 +5889,7 @@
 								"exec": [
 									"pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
 									"pm.test('mensagem sobre o dono do equipamento', () => {",
-									"    pm.expect(pm.response.json().detail).to.include('nao pertence ao cliente');",
+									"    pm.expect(pm.response.json().detail).to.include('não pertence ao cliente');",
 									"});"
 								]
 							}
@@ -6018,7 +6018,7 @@
 								"exec": [
 									"pm.test('404 Not Found', () => pm.response.to.have.status(404));",
 									"pm.test('aponta qual recurso faltou', () => {",
-									"    pm.expect(pm.response.json().detail).to.include('Servico');",
+									"    pm.expect(pm.response.json().detail).to.include('Serviço');",
 									"});"
 								]
 							}
@@ -6068,7 +6068,7 @@
 									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
 									"const b = pm.response.json();",
 									"pm.test('mapa de erros por campo', () => {",
-									"    pm.expect(b.title).to.eql('Dados invalidos');",
+									"    pm.expect(b.title).to.eql('Dados inválidos');",
 									"    pm.expect(b.erros).to.have.property('servicoId');",
 									"});"
 								]
@@ -6119,7 +6119,7 @@
 								"exec": [
 									"pm.test('404 Not Found', () => pm.response.to.have.status(404));",
 									"pm.test('ProblemDetail de recurso nao encontrado', () => {",
-									"    pm.expect(pm.response.json().title).to.eql('Recurso nao encontrado');",
+									"    pm.expect(pm.response.json().title).to.eql('Recurso não encontrado');",
 									"});"
 								]
 							}
@@ -6493,7 +6493,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso duplicado\",\n  \"status\": 409,\n  \"detail\": \"Ja existe um usuario cadastrado com o e-mail operador@m2equipamentos.com.br\",\n  \"instance\": \"/usuarios\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso duplicado\",\n  \"status\": 409,\n  \"detail\": \"Já existe um usuário cadastrado com o e-mail operador@m2equipamentos.com.br\",\n  \"instance\": \"/usuarios\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -6659,7 +6659,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Acesso negado\",\n  \"status\": 403,\n  \"detail\": \"Voce nao tem permissao para acessar este recurso.\",\n  \"instance\": \"/usuarios\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Acesso negado\",\n  \"status\": 403,\n  \"detail\": \"Você não tem permissão para acessar este recurso.\",\n  \"instance\": \"/usuarios\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -6805,7 +6805,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso nao encontrado\",\n  \"status\": 404,\n  \"detail\": \"Usuario nao encontrado(a) para o id 999999\",\n  \"instance\": \"/usuarios/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso não encontrado\",\n  \"status\": 404,\n  \"detail\": \"Usuário não encontrado(a) para o id 999999\",\n  \"instance\": \"/usuarios/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"id": "dd285e85-815e-55d9-a23e-91c7d38db01d"
@@ -6941,7 +6941,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Acesso negado\",\n  \"status\": 403,\n  \"detail\": \"Voce nao tem permissao para acessar este recurso.\",\n  \"instance\": \"/usuarios/2\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Acesso negado\",\n  \"status\": 403,\n  \"detail\": \"Você não tem permissão para acessar este recurso.\",\n  \"instance\": \"/usuarios/2\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"id": "59c72805-10ae-5c29-b1ba-31fd423b9966"
@@ -7247,7 +7247,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"O usuario MASTER nao pode ser desativado.\",\n  \"instance\": \"/usuarios/1/desativar\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"O usuário MASTER não pode ser desativado.\",\n  \"instance\": \"/usuarios/1/desativar\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -7550,7 +7550,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"A data inicial nao pode ser posterior a data final.\",\n  \"instance\": \"/painel\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"A data inicial não pode ser posterior à data final.\",\n  \"instance\": \"/painel\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -7676,7 +7676,7 @@
 									"pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));",
 									"const b = pm.response.json();",
 									"pm.test('regra de negocio, com mensagem util', () => {",
-									"    pm.expect(b.title).to.eql('Regra de negocio violada');",
+									"    pm.expect(b.title).to.eql('Regra de negócio violada');",
 									"    pm.expect(b.detail).to.include('posterior');",
 									"});"
 								]
@@ -7717,7 +7717,7 @@
 									"pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
 									"pm.test('aponta o parametro invalido', () => {",
 									"    const b = pm.response.json();",
-									"    pm.expect(b.title).to.eql('Parametro invalido');",
+									"    pm.expect(b.title).to.eql('Parâmetro inválido');",
 									"    pm.expect(b.detail).to.include('dataInicio');",
 									"});"
 								]
@@ -7754,7 +7754,7 @@
 								"exec": [
 									"pm.test('401 Unauthorized', () => pm.response.to.have.status(401));",
 									"pm.test('ProblemDetail de autenticacao', () => {",
-									"    pm.expect(pm.response.json().title).to.eql('Nao autenticado');",
+									"    pm.expect(pm.response.json().title).to.eql('Não autenticado');",
 									"});"
 								]
 							}
@@ -8392,7 +8392,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso nao encontrado\",\n  \"status\": 404,\n  \"detail\": \"Nao ha notificacao configuravel para o status EM_ANDAMENTO.\",\n  \"instance\": \"/notificacoes/templates/EM_ANDAMENTO\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso não encontrado\",\n  \"status\": 404,\n  \"detail\": \"Não há notificação configurável para o status EM_ANDAMENTO.\",\n  \"instance\": \"/notificacoes/templates/EM_ANDAMENTO\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						},
 						{
 							"name": "422 - Placeholder desconhecido",
@@ -8435,7 +8435,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"Placeholder desconhecido no conteudo: nome, numero. Aceitos: cliente, os, valor, status, dataEntrada, dataConcluida, dataEntregue.\",\n  \"instance\": \"/notificacoes/templates/CONCLUIDA\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"Placeholder desconhecido no conteúdo: nome, numero. Aceitos: cliente, os, valor, status, dataEntrada, dataConcluida, dataEntregue.\",\n  \"instance\": \"/notificacoes/templates/CONCLUIDA\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -8646,7 +8646,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso nao encontrado\",\n  \"status\": 404,\n  \"detail\": \"Notificacao nao encontrado(a) para o id 999999\",\n  \"instance\": \"/notificacoes/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso não encontrado\",\n  \"status\": 404,\n  \"detail\": \"Notificação não encontrado(a) para o id 999999\",\n  \"instance\": \"/notificacoes/999999\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -9367,7 +9367,7 @@
 								"type": "text/javascript",
 								"exec": [
 									"pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
-									"pm.test('aponta a confirmacao', () => pm.expect(pm.response.json().detail).to.include('confirmacao'));"
+									"pm.test('aponta a confirmacao', () => pm.expect(pm.response.json().detail).to.include('confirmação'));"
 								]
 							}
 						}
@@ -9553,7 +9553,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"A senha atual esta incorreta.\",\n  \"instance\": \"/usuarios/eu/senha\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"A senha atual está incorreta.\",\n  \"instance\": \"/usuarios/eu/senha\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						},
 						{
 							"name": "422 - Confirmacao divergente",
@@ -9596,7 +9596,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"A nova senha e a confirmacao nao conferem.\",\n  \"instance\": \"/usuarios/eu/senha\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"A nova senha e a confirmação não conferem.\",\n  \"instance\": \"/usuarios/eu/senha\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -9833,7 +9833,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados invalidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validacao.\",\n  \"instance\": \"/auth/senha/esqueci\",\n  \"erros\": {\n    \"email\": \"E-mail em formato invalido\"\n  },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados inválidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validação.\",\n  \"instance\": \"/auth/senha/esqueci\",\n  \"erros\": {\n    \"email\": \"E-mail em formato inválido\"\n  },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -9910,7 +9910,7 @@
 									"const d = pm.response.json().detail;",
 									"pm.collectionVariables.set('mensagemTokenInvalido', d);",
 									"pm.test('mensagem generica, sem dizer o motivo real', () => {",
-									"    pm.expect(d).to.include('invalido ou expirado');",
+									"    pm.expect(d).to.include('inválido ou expirado');",
 									"});"
 								]
 							}
@@ -9939,7 +9939,7 @@
 								"redefinir"
 							]
 						},
-						"description": "**Unico request manual da pasta.** O Postman nao le caixa de e-mail, entao o token precisa ser colado na variavel de colecao `{{tokenRecuperacao}}`.\n\nComo obter: abra o e-mail que saiu no request \"Esqueci a senha\", copie o trecho depois de `?token=` do link e cole em `{{tokenRecuperacao}}`. Em desenvolvimento, o jeito rapido e um SMTP de mentira (Mailpit em localhost:1025, caixa em http://localhost:8025).\n\nRodar a pasta inteira sem colar o token deixa este request em vermelho — e esperado.\n\nRedefinir tambem derruba as sessoes abertas e queima **todos** os links pendentes do usuario, nao so este.\n\n---\n\n## Referencia: `POST /auth/senha/redefinir`\n\nRedefine a senha usando o token recebido por e-mail. Nao pede a senha atual: o token prova a posse da conta.\n\n**Acesso:** **Publica** - nao exige token\n\n### Corpo (JSON)\n\n| Campo | Tipo | Obrigatorio | Regras |\n|---|---|---|---|\n| token | string | sim | token do link do e-mail |\n| senhaNova | string | sim | 8 a 72 caracteres |\n| senhaNovaConfirmacao | string | sim | identica a `senhaNova` |\n\n### Resposta de sucesso\n`204 No Content`.\n\n### Regras de negocio\n- Token de uso unico, com expiracao.\n- Token inexistente, ja usado, expirado, de outro fluxo ou de usuario inativo devolvem a MESMA mensagem 422, de proposito.\n- Apos redefinir, os JWT emitidos antes deixam de valer (401).\n\n### Status possiveis\n\n| Status | Quando |\n|---|---|\n| 204 | Senha redefinida |\n| 400 | Campos ausentes ou senha fora de 8-72 |\n| 422 | Link invalido/expirado ou confirmacao divergente |",
+						"description": "**Unico request manual da pasta.** O Postman nao le caixa de e-mail, entao o token precisa ser colado na variavel de colecao `{{tokenRecuperacao}}`.\n\nComo obter: abra o e-mail que saiu no request \"Esqueci a senha\", copie o trecho depois de `?token=` do link e cole em `{{tokenRecuperacao}}`. Em desenvolvimento, o jeito rapido e um SMTP de mentira (Mailpit em localhost:1025, caixa em http://localhost:8025).\n\nRodar a pasta inteira sem colar o token deixa este request em vermelho — e esperado.\n\nRedefinir tambem derruba as sessoes abertas e queima **todos** os links pendentes do usuario, nao so este.\n\n---\n\n## Referencia: `POST /auth/senha/redefinir`\n\nRedefine a senha usando o token recebido por e-mail. Nao pede a senha atual: o token prova a posse da conta.\n\n**Acesso:** **Publica** - nao exige token\n\n### Corpo (JSON)\n\n| Campo | Tipo | Obrigatorio | Regras |\n|---|---|---|---|\n| token | string | sim | token do link do e-mail |\n| senhaNova | string | sim | 8 a 72 caracteres |\n| senhaNovaConfirmacao | string | sim | identica a `senhaNova` |\n\n### Resposta de sucesso\n`204 No Content`.\n\n### Regras de negocio\n- Token de uso unico, com expiracao.\n- Token inexistente, ja usado, expirado, de outro fluxo ou de usuario inativo devolvem a MESMA mensagem 422, de proposito.\n- A nova senha precisa ser diferente da atual: 422 com `erros.senhaNova`. Checado depois do token, e o link continua valendo para tentar de novo.\n- Apos redefinir, os JWT emitidos antes deixam de valer (401).\n\n### Status possiveis\n\n| Status | Quando |\n|---|---|\n| 204 | Senha redefinida |\n| 400 | Campos ausentes ou senha fora de 8-72 |\n| 422 | Link invalido/expirado, confirmacao divergente ou nova senha igual a atual |",
 						"auth": {
 							"type": "noauth"
 						},
@@ -10033,7 +10033,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"Link de redefinicao invalido ou expirado. Solicite um novo.\",\n  \"instance\": \"/auth/senha/redefinir\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"Link de redefinição inválido ou expirado. Solicite um novo.\",\n  \"instance\": \"/auth/senha/redefinir\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -10385,7 +10385,7 @@
 								"type": "text/javascript",
 								"exec": [
 									"pm.test('422 Unprocessable', () => pm.response.to.have.status(422));",
-									"pm.test('aponta a confirmacao', () => pm.expect(pm.response.json().detail).to.include('confirmacao'));"
+									"pm.test('aponta a confirmacao', () => pm.expect(pm.response.json().detail).to.include('confirmação'));"
 								]
 							}
 						}
@@ -10627,7 +10627,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso duplicado\",\n  \"status\": 409,\n  \"detail\": \"Ja existe um usuario cadastrado com o e-mail bv2uepg2026@gmail.com\",\n  \"instance\": \"/usuarios/eu/email\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Recurso duplicado\",\n  \"status\": 409,\n  \"detail\": \"Já existe um usuário cadastrado com o e-mail bv2uepg2026@gmail.com\",\n  \"instance\": \"/usuarios/eu/email\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						},
 						{
 							"name": "422 - Mesmo e-mail atual",
@@ -10670,7 +10670,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"O novo e-mail e igual ao atual.\",\n  \"instance\": \"/usuarios/eu/email\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"O novo e-mail e igual ao atual.\",\n  \"instance\": \"/usuarios/eu/email\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [
@@ -10862,7 +10862,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negocio violada\",\n  \"status\": 422,\n  \"detail\": \"Link de confirmacao invalido ou expirado. Solicite a alteracao novamente.\",\n  \"instance\": \"/auth/email/confirmar\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"Link de confirmação inválido ou expirado. Solicite a alteração novamente.\",\n  \"instance\": \"/auth/email/confirmar\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
 						}
 					],
 					"event": [

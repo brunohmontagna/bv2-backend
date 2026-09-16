@@ -14,10 +14,10 @@ import jakarta.validation.constraints.Size;
  */
 public record TemplateNotificacaoRequest(
 
-        @NotNull(message = "Informe se a notificacao automatica esta ativa.")
+        @NotNull(message = "Informe se a notificação automática está ativa.")
         Boolean ativo,
 
-        @NotBlank(message = "O conteudo da mensagem e obrigatorio.")
-        @Size(max = 500, message = "O conteudo deve ter no maximo 500 caracteres.")
+        @NotBlank(message = "O conteúdo da mensagem é obrigatório.")
+        @Size(max = 500, message = "O conteúdo deve ter no máximo 500 caracteres.")
         String conteudo) {
 }

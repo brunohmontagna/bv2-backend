@@ -8,13 +8,13 @@ import jakarta.validation.constraints.Size;
 public record EquipamentoCriacaoRequest(
 
         @Schema(description = "Cliente da M2 dono do equipamento. Precisa estar ativo.")
-        @NotNull(message = "O cliente e obrigatorio")
+        @NotNull(message = "O cliente é obrigatório")
         Long clienteId,
 
-        @NotNull(message = "A marca e obrigatoria")
+        @NotNull(message = "A marca é obrigatória")
         Long marcaId,
 
-        @NotBlank(message = "O nome e obrigatorio")
-        @Size(max = 50, message = "O nome deve ter no maximo 50 caracteres")
+        @NotBlank(message = "O nome é obrigatório")
+        @Size(max = 50, message = "O nome deve ter no máximo 50 caracteres")
         String nome) {
 }

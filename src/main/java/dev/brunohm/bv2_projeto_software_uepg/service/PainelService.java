@@ -96,7 +96,7 @@ public class PainelService {
         LocalDate inicio = dataInicio != null ? dataInicio : fim.minusDays(JANELA_PADRAO_DIAS);
 
         if (inicio.isAfter(fim)) {
-            throw new RegraDeNegocioException("A data inicial nao pode ser posterior a data final.");
+            throw new RegraDeNegocioException("A data inicial não pode ser posterior à data final.");
         }
 
         return new PeriodoResponse(inicio, fim);

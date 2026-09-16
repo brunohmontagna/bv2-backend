@@ -44,7 +44,7 @@ public class EquipamentoService {
 
         if (Boolean.FALSE.equals(cliente.getAtivo())) {
             throw new RegraDeNegocioException(
-                    "Nao e possivel cadastrar equipamento para um cliente inativo.");
+                    "Não é possível cadastrar equipamento para um cliente inativo.");
         }
 
         Marca marca = buscarMarca(request.marcaId());
@@ -107,7 +107,7 @@ public class EquipamentoService {
      * colisao comum responder com mensagem clara em vez do 409 generico do banco.
      */
     private RecursoDuplicadoException duplicado(String nome, Marca marca) {
-        return new RecursoDuplicadoException("O cliente ja possui um equipamento "
+        return new RecursoDuplicadoException("O cliente já possui um equipamento "
                 + nome + " da marca " + marca.getNome());
     }
 

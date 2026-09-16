@@ -29,7 +29,7 @@ public class MarcaService {
     @Transactional
     public MarcaResponse criar(MarcaRequest request) {
         if (marcaRepository.existsByNomeIgnoreCase(request.nome())) {
-            throw new RecursoDuplicadoException("Ja existe uma marca com o nome " + request.nome());
+            throw new RecursoDuplicadoException("Já existe uma marca com o nome " + request.nome());
         }
 
         Marca marca = marcaRepository.save(Marca.builder()
@@ -53,7 +53,7 @@ public class MarcaService {
         Marca marca = buscarEntidade(id);
 
         if (marcaRepository.existsByNomeIgnoreCaseAndIdNot(request.nome(), id)) {
-            throw new RecursoDuplicadoException("Ja existe uma marca com o nome " + request.nome());
+            throw new RecursoDuplicadoException("Já existe uma marca com o nome " + request.nome());
         }
 
         marca.setNome(request.nome());

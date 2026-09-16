@@ -34,8 +34,8 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/notificacoes")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Notificacoes", description = "Avisos automaticos por WhatsApp ao trocar o status da OS. "
-        + "As notificacoes sao um log escrito pelo sistema — a API so le. O que se configura sao os "
+@Tag(name = "Notificações", description = "Avisos automáticos por WhatsApp ao trocar o status da OS. "
+        + "As notificações são um log escrito pelo sistema — a API só lê. O que se configura são os "
         + "templates: um por status, com o texto e a chave liga/desliga")
 public class NotificacaoController {
 
@@ -60,8 +60,8 @@ public class NotificacaoController {
     @GetMapping("/{id}")
     @Operation(summary = "Busca um envio pelo id, com o texto exato que foi enviado ao cliente")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Notificacao encontrada"),
-            @ApiResponse(responseCode = "404", description = "Notificacao nao encontrada")
+            @ApiResponse(responseCode = "200", description = "Notificação encontrada"),
+            @ApiResponse(responseCode = "404", description = "Notificação não encontrada")
     })
     public ResponseEntity<NotificacaoResponse> buscarPorId(@PathVariable Long id) {
         return ResponseEntity.ok(notificacaoService.buscarPorId(id));
@@ -72,24 +72,24 @@ public class NotificacaoController {
     // ------------------------------------------------------------------
 
     @GetMapping("/templates")
-    @Operation(summary = "Lista os templates configuraveis, um por status de OS que notifica")
+    @Operation(summary = "Lista os templates configuráveis, um por status de OS que notifica")
     public ResponseEntity<List<TemplateNotificacaoResponse>> listarTemplates() {
         return ResponseEntity.ok(notificacaoService.listarTemplates());
     }
 
     @GetMapping("/placeholders")
-    @Operation(summary = "Lista os placeholders aceitos no conteudo do template, com descricao e exemplo")
+    @Operation(summary = "Lista os placeholders aceitos no conteúdo do template, com descrição e exemplo")
     public ResponseEntity<List<PlaceholderResponse>> listarPlaceholders() {
         return ResponseEntity.ok(notificacaoService.listarPlaceholders());
     }
 
     @PutMapping("/templates/{statusOs}")
-    @Operation(summary = "Define o texto e liga ou desliga a notificacao automatica de um status")
+    @Operation(summary = "Define o texto e liga ou desliga a notificação automática de um status")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Template atualizado"),
-            @ApiResponse(responseCode = "400", description = "Dados invalidos ou status inexistente"),
-            @ApiResponse(responseCode = "404", description = "Esse status nao tem notificacao configuravel"),
-            @ApiResponse(responseCode = "422", description = "O conteudo usa um placeholder desconhecido")
+            @ApiResponse(responseCode = "400", description = "Dados inválidos ou status inexistente"),
+            @ApiResponse(responseCode = "404", description = "Esse status não tem notificação configurável"),
+            @ApiResponse(responseCode = "422", description = "O conteúdo usa um placeholder desconhecido")
     })
     public ResponseEntity<TemplateNotificacaoResponse> atualizarTemplate(
             @PathVariable StatusOs statusOs,

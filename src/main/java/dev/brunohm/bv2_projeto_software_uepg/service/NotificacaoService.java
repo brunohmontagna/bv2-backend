@@ -77,7 +77,7 @@ public class NotificacaoService {
 
     private Notificacao buscarEntidade(Long id) {
         return notificacaoRepository.findById(id)
-                .orElseThrow(() -> RecursoNaoEncontradoException.de("Notificacao", id));
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Notificação", id));
     }
 
     private Specification<Notificacao> filtrar(Long ordemServicoId, Long clienteId,
@@ -132,12 +132,12 @@ public class NotificacaoService {
     public TemplateNotificacaoResponse atualizarTemplate(StatusOs status, TemplateNotificacaoRequest request) {
         TemplateNotificacao template = templateNotificacaoRepository.findById(status)
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
-                        "Nao ha notificacao configuravel para o status " + status + "."));
+                        "Não há notificação configurável para o status " + status + "."));
 
         Set<String> desconhecidas = renderizadorMensagem.chavesDesconhecidas(request.conteudo());
         if (!desconhecidas.isEmpty()) {
             throw new RegraDeNegocioException(
-                    "Placeholder desconhecido no conteudo: " + String.join(", ", desconhecidas)
+                    "Placeholder desconhecido no conteúdo: " + String.join(", ", desconhecidas)
                             + ". Aceitos: " + renderizadorMensagem.chavesAceitas() + ".");
         }
 
@@ -188,7 +188,7 @@ public class NotificacaoService {
         OrdemServico ordemServico = ordemServicoRepository.findById(evento.ordemServicoId())
                 .orElse(null);
         if (ordemServico == null) {
-            log.warn("OS {} nao encontrada ao notificar a transicao para {}.",
+            log.warn("OS {} não encontrada ao notificar a transição para {}.",
                     evento.ordemServicoId(), evento.statusNovo());
             return;
         }

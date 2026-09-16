@@ -10,7 +10,7 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record ConfirmacaoEmailRequest(
 
-        @Schema(description = "O token que veio no link enviado ao novo endereco.")
-        @NotBlank(message = "O token e obrigatorio")
+        @Schema(description = "O token que veio no link enviado ao novo endereço.")
+        @NotBlank(message = "O token é obrigatório")
         String token) {
 }

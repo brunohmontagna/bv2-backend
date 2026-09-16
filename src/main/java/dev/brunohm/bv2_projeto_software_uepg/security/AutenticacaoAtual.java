@@ -15,7 +15,7 @@ public class AutenticacaoAtual {
     public UsuarioAutenticado usuario() {
         Authentication autenticacao = SecurityContextHolder.getContext().getAuthentication();
         if (autenticacao == null || !(autenticacao.getPrincipal() instanceof UsuarioAutenticado usuario)) {
-            throw new AccessDeniedException("Requisicao sem usuario autenticado.");
+            throw new AccessDeniedException("Requisição sem usuário autenticado.");
         }
         return usuario;
     }

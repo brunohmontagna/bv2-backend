@@ -60,7 +60,7 @@ public class N8nWebhookClient {
          * vez de a transicao de status quebrar.
          */
         if (url == null || url.isBlank()) {
-            log.warn("n8n.webhook.url nao configurada: notificacao {} nao foi enviada.",
+            log.warn("n8n.webhook.url não configurada: notificação {} não foi enviada.",
                     payload.notificacaoId());
             return false;
         }
@@ -81,7 +81,7 @@ public class N8nWebhookClient {
             // Exception e nao RestClientException: timeout, DNS e erro de
             // serializacao chegam aqui como tipos diferentes, e nenhum deles pode
             // escapar para o listener.
-            log.warn("Falha ao enviar a notificacao {} para o n8n: {}",
+            log.warn("Falha ao enviar a notificação {} para o n8n: {}",
                     payload.notificacaoId(), e.toString());
             return false;
         }

@@ -20,16 +20,16 @@ public record SolicitacaoAlteracaoEmailRequest(
          * — quem clica e quem controla o destino, que no ataque e o atacante.
          */
         @Schema(description = "A senha atual, para provar que o pedido partiu do dono da conta.")
-        @NotBlank(message = "A senha atual e obrigatoria")
+        @NotBlank(message = "A senha atual é obrigatória")
         String senhaAtual,
 
-        @Schema(description = "O novo endereco. E para ele que vai o link de confirmacao.")
-        @NotBlank(message = "O novo e-mail e obrigatorio")
-        @Email(message = "E-mail em formato invalido")
-        @Size(max = 50, message = "O e-mail deve ter no maximo 50 caracteres")
+        @Schema(description = "O novo endereço. É para ele que vai o link de confirmação.")
+        @NotBlank(message = "O novo e-mail é obrigatório")
+        @Email(message = "E-mail em formato inválido")
+        @Size(max = 50, message = "O e-mail deve ter no máximo 50 caracteres")
         String novoEmail,
 
-        @Schema(description = "Repeticao do novo endereco. Precisa ser identica a novoEmail.")
-        @NotBlank(message = "A confirmacao do novo e-mail e obrigatoria")
+        @Schema(description = "Repetição do novo endereço. Precisa ser idêntica ao novoEmail.")
+        @NotBlank(message = "A confirmação do novo e-mail é obrigatória")
         String novoEmailConfirmacao) {
 }

@@ -40,13 +40,13 @@ public class RenderizadorMensagem {
      */
     public enum Placeholder {
 
-        CLIENTE("cliente", "Nome do cliente da ordem de servico", "Oficina do Ze"),
-        OS("os", "Numero da ordem de servico", "34"),
+        CLIENTE("cliente", "Nome do cliente da ordem de serviço", "Oficina do Zé"),
+        OS("os", "Número da ordem de serviço", "34"),
         VALOR("valor", "Valor total da OS, no formato brasileiro e sem o R$", "1.234,56"),
-        STATUS("status", "Status para o qual a OS acabou de mudar", "Concluida"),
+        STATUS("status", "Status para o qual a OS acabou de mudar", "Concluída"),
         DATA_ENTRADA("dataEntrada", "Data de entrada do equipamento", "20/08/2026"),
-        DATA_CONCLUIDA("dataConcluida", "Data de conclusao; vazio se a OS ainda nao foi concluida", "03/09/2026"),
-        DATA_ENTREGUE("dataEntregue", "Data de entrega; vazio se a OS ainda nao foi entregue", "05/09/2026");
+        DATA_CONCLUIDA("dataConcluida", "Data de conclusão; vazio se a OS ainda não foi concluída", "03/09/2026"),
+        DATA_ENTREGUE("dataEntregue", "Data de entrega; vazio se a OS ainda não foi entregue", "05/09/2026");
 
         private final String chave;
         private final String descricao;
@@ -155,13 +155,13 @@ public class RenderizadorMensagem {
     }
 
     /*
-     * Sem acentos, como todo texto gerado pelo projeto. O que a M2 escrever no
-     * template dela e outra historia: a coluna e UTF-8 e aceita acento normalmente.
+     * Com acento, como todo texto que a API devolve. O n8n roteia pelo enum do
+     * status, nunca por este rotulo, entao muda-lo nao quebra o fluxo.
      */
     private String rotuloDe(StatusOs status) {
         return switch (status) {
             case EM_ANDAMENTO -> "Em andamento";
-            case CONCLUIDA -> "Concluida";
+            case CONCLUIDA -> "Concluída";
             case ENTREGUE -> "Entregue";
             case CANCELADA -> "Cancelada";
         };

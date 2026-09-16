@@ -33,7 +33,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/marcas")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Marcas", description = "Catalogo de marcas dos equipamentos. Leitura e escrita para qualquer usuario autenticado")
+@Tag(name = "Marcas", description = "Catálogo de marcas dos equipamentos. Leitura e escrita para qualquer usuário autenticado")
 public class MarcaController {
 
     private final MarcaService marcaService;
@@ -42,8 +42,8 @@ public class MarcaController {
     @Operation(summary = "Cadastra uma marca")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Marca criada"),
-            @ApiResponse(responseCode = "400", description = "Dados invalidos"),
-            @ApiResponse(responseCode = "409", description = "Nome ja cadastrado")
+            @ApiResponse(responseCode = "400", description = "Dados inválidos"),
+            @ApiResponse(responseCode = "409", description = "Nome já cadastrado")
     })
     public ResponseEntity<MarcaResponse> criar(@Valid @RequestBody MarcaRequest request) {
         MarcaResponse criada = marcaService.criar(request);
@@ -66,7 +66,7 @@ public class MarcaController {
     @Operation(summary = "Busca uma marca pelo id")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Marca encontrada"),
-            @ApiResponse(responseCode = "404", description = "Marca nao encontrada")
+            @ApiResponse(responseCode = "404", description = "Marca não encontrada")
     })
     public ResponseEntity<MarcaResponse> buscarPorId(@PathVariable Long id) {
         return ResponseEntity.ok(marcaService.buscarPorId(id));
@@ -76,8 +76,8 @@ public class MarcaController {
     @Operation(summary = "Atualiza o nome da marca")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Marca atualizada"),
-            @ApiResponse(responseCode = "404", description = "Marca nao encontrada"),
-            @ApiResponse(responseCode = "409", description = "Nome ja cadastrado em outra marca")
+            @ApiResponse(responseCode = "404", description = "Marca não encontrada"),
+            @ApiResponse(responseCode = "409", description = "Nome já cadastrado em outra marca")
     })
     public ResponseEntity<MarcaResponse> atualizar(
             @PathVariable Long id,
@@ -89,7 +89,7 @@ public class MarcaController {
     @Operation(summary = "Remove a marca")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Marca removida"),
-            @ApiResponse(responseCode = "404", description = "Marca nao encontrada"),
+            @ApiResponse(responseCode = "404", description = "Marca não encontrada"),
             @ApiResponse(responseCode = "409", description = "Marca possui equipamentos vinculados")
     })
     public ResponseEntity<Void> excluir(@PathVariable Long id) {

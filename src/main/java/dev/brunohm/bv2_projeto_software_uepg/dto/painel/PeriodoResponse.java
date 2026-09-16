@@ -9,6 +9,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * informou nada: o padrao e resolvido no servidor, e sem o eco o front nao teria
  * como rotular o que esta exibindo.
  */
-@Schema(description = "Periodo analisado, inclusivo nas duas pontas")
+@Schema(description = "Período analisado, inclusivo nas duas pontas")
 public record PeriodoResponse(LocalDate dataInicio, LocalDate dataFim) {
 }

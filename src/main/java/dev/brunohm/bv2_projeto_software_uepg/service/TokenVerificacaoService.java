@@ -128,7 +128,7 @@ public class TokenVerificacaoService {
             return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
             // SHA-256 e obrigatorio em toda JVM; se faltar, nao ha o que fazer.
-            throw new IllegalStateException("SHA-256 indisponivel nesta JVM", e);
+            throw new IllegalStateException("SHA-256 indisponível nesta JVM", e);
         }
     }
 }

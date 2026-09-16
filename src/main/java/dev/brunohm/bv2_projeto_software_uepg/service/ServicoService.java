@@ -31,7 +31,7 @@ public class ServicoService {
     public ServicoResponse criar(ServicoRequest request) {
         if (servicoRepository.existsByNomeIgnoreCaseAndValor(request.nome(), request.valor())) {
             throw new RecursoDuplicadoException(
-                    "Ja existe um servico '" + request.nome() + "' com o valor " + request.valor()
+                    "Já existe um serviço '" + request.nome() + "' com o valor " + request.valor()
                             + ". Diferencie o nome ou o valor.");
         }
 
@@ -60,7 +60,7 @@ public class ServicoService {
 
         if (servicoRepository.existsByNomeIgnoreCaseAndValorAndIdNot(request.nome(), request.valor(), id)) {
             throw new RecursoDuplicadoException(
-                    "Ja existe outro servico '" + request.nome() + "' com o valor " + request.valor()
+                    "Já existe outro serviço '" + request.nome() + "' com o valor " + request.valor()
                             + ". Diferencie o nome ou o valor.");
         }
 
@@ -92,7 +92,7 @@ public class ServicoService {
 
     private Servico buscarEntidade(Long id) {
         return servicoRepository.findById(id)
-                .orElseThrow(() -> RecursoNaoEncontradoException.de("Servico", id));
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Serviço", id));
     }
 
     private Specification<Servico> filtrar(String nome, Boolean ativo) {

@@ -11,9 +11,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * metricas usam datas diferentes de proposito — entrada por dataEntrada, faturamento
  * por dataEntregue —, entao o mesmo mes mostra o que entrou e o que saiu.
  */
-@Schema(description = "Um mes da serie temporal")
+@Schema(description = "Um mês da série temporal")
 public record SerieMensalResponse(
-        @Schema(description = "Mes no formato AAAA-MM", example = "2026-07") String mes,
+        @Schema(description = "Mês no formato AAAA-MM", example = "2026-07") String mes,
         long ordensAbertas,
         BigDecimal faturamento) {
 

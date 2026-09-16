@@ -34,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/equipamentos")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Equipamentos", description = "Equipamentos dos clientes da M2. Qualquer usuario autenticado acessa todos")
+@Tag(name = "Equipamentos", description = "Equipamentos dos clientes da M2. Qualquer usuário autenticado acessa todos")
 public class EquipamentoController {
 
     private final EquipamentoService equipamentoService;
@@ -43,8 +43,8 @@ public class EquipamentoController {
     @Operation(summary = "Cadastra um equipamento para um cliente da M2")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Equipamento criado"),
-            @ApiResponse(responseCode = "400", description = "Dados invalidos"),
-            @ApiResponse(responseCode = "404", description = "Cliente ou marca nao encontrada"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos"),
+            @ApiResponse(responseCode = "404", description = "Cliente ou marca não encontrada"),
             @ApiResponse(responseCode = "422", description = "Cliente inativo")
     })
     public ResponseEntity<EquipamentoResponse> criar(@Valid @RequestBody EquipamentoCriacaoRequest request) {
@@ -70,17 +70,17 @@ public class EquipamentoController {
     @Operation(summary = "Busca um equipamento pelo id")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Equipamento encontrado"),
-            @ApiResponse(responseCode = "404", description = "Equipamento nao encontrado")
+            @ApiResponse(responseCode = "404", description = "Equipamento não encontrado")
     })
     public ResponseEntity<EquipamentoResponse> buscarPorId(@PathVariable Long id) {
         return ResponseEntity.ok(equipamentoService.buscarPorId(id));
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Atualiza nome e marca do equipamento (o cliente dono e imutavel)")
+    @Operation(summary = "Atualiza nome e marca do equipamento (o cliente dono é imutável)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Equipamento atualizado"),
-            @ApiResponse(responseCode = "404", description = "Equipamento ou marca nao encontrada")
+            @ApiResponse(responseCode = "404", description = "Equipamento ou marca não encontrada")
     })
     public ResponseEntity<EquipamentoResponse> atualizar(
             @PathVariable Long id,
@@ -92,8 +92,8 @@ public class EquipamentoController {
     @Operation(summary = "Remove definitivamente o equipamento")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Equipamento removido"),
-            @ApiResponse(responseCode = "404", description = "Equipamento nao encontrado"),
-            @ApiResponse(responseCode = "409", description = "Equipamento usado em ordens de servico")
+            @ApiResponse(responseCode = "404", description = "Equipamento não encontrado"),
+            @ApiResponse(responseCode = "409", description = "Equipamento usado em ordens de serviço")
     })
     public ResponseEntity<Void> excluir(@PathVariable Long id) {
         equipamentoService.excluir(id);

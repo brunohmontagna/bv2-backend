@@ -18,15 +18,15 @@ public record AlteracaoSenhaRequest(
          * senha antiga nao precisa saber a politica de tamanho da nova.
          */
         @Schema(description = "A senha atual, para provar a posse da conta.")
-        @NotBlank(message = "A senha atual e obrigatoria")
+        @NotBlank(message = "A senha atual é obrigatória")
         String senhaAtual,
 
-        @Schema(description = "A nova senha. O limite de 72 e o do BCrypt, que trunca acima disso.")
-        @NotBlank(message = "A nova senha e obrigatoria")
+        @Schema(description = "A nova senha. O limite de 72 é o do BCrypt, que trunca acima disso.")
+        @NotBlank(message = "A nova senha é obrigatória")
         @Size(min = 8, max = 72, message = "A senha deve ter entre 8 e 72 caracteres")
         String senhaNova,
 
-        @Schema(description = "Repeticao da nova senha. Precisa ser identica a senhaNova.")
-        @NotBlank(message = "A confirmacao da nova senha e obrigatoria")
+        @Schema(description = "Repetição da nova senha. Precisa ser idêntica à senhaNova.")
+        @NotBlank(message = "A confirmação da nova senha é obrigatória")
         String senhaNovaConfirmacao) {
 }

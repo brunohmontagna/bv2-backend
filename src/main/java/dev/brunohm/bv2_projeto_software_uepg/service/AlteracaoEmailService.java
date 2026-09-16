@@ -43,7 +43,7 @@ public class AlteracaoEmailService {
 
     /** Mensagem unica para todos os motivos de recusa do token. */
     private static final String TOKEN_INVALIDO =
-            "Link de confirmacao invalido ou expirado. Solicite a alteracao novamente.";
+            "Link de confirmação inválido ou expirado. Solicite a alteração novamente.";
 
     private final UsuarioRepository usuarioRepository;
     private final TokenVerificacaoService tokenVerificacaoService;
@@ -75,7 +75,7 @@ public class AlteracaoEmailService {
     public void solicitar(SolicitacaoAlteracaoEmailRequest request) {
         Long id = autenticacaoAtual.usuario().getId();
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> RecursoNaoEncontradoException.de("Usuario", id));
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Usuário", id));
 
         /*
          * 422 e nao 401: o token e valido e o usuario esta autenticado, o que falhou
@@ -83,15 +83,15 @@ public class AlteracaoEmailService {
          * digitacao — mesma decisao do PUT /usuarios/eu/senha.
          */
         if (!passwordEncoder.matches(request.senhaAtual(), usuario.getSenha())) {
-            throw new RegraDeNegocioException("A senha atual esta incorreta.");
+            throw new RegraDeNegocioException("A senha atual está incorreta.");
         }
 
         if (!request.novoEmail().equals(request.novoEmailConfirmacao())) {
-            throw new RegraDeNegocioException("O novo e-mail e a confirmacao nao conferem.");
+            throw new RegraDeNegocioException("O novo e-mail e a confirmação não conferem.");
         }
 
         if (request.novoEmail().equalsIgnoreCase(usuario.getEmail())) {
-            throw new RegraDeNegocioException("O novo e-mail e igual ao atual.");
+            throw new RegraDeNegocioException("O novo e-mail é igual ao atual.");
         }
 
         garantirEmailLivre(request.novoEmail(), usuario.getId());
@@ -134,14 +134,14 @@ public class AlteracaoEmailService {
 
         tokenVerificacaoService.consumir(token);
 
-        log.info("E-mail alterado para o usuario {}.", usuario.getId());
+        log.info("E-mail alterado para o usuário {}.", usuario.getId());
     }
 
     /* 409 com mensagem legivel, como POST /usuarios e o PUT ja fazem. */
     private void garantirEmailLivre(String email, Long usuarioId) {
         if (usuarioRepository.existsByEmailAndIdNot(email, usuarioId)) {
             throw new RecursoDuplicadoException(
-                    "Ja existe um usuario cadastrado com o e-mail " + email);
+                    "Já existe um usuário cadastrado com o e-mail " + email);
         }
     }
 }

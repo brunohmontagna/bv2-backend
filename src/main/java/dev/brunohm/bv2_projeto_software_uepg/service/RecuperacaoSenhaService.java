@@ -42,7 +42,7 @@ public class RecuperacaoSenhaService {
 
     /** Mensagem unica para todos os motivos de recusa. Ver o Javadoc da classe. */
     private static final String TOKEN_INVALIDO =
-            "Link de redefinicao invalido ou expirado. Solicite um novo.";
+            "Link de redefinição inválido ou expirado. Solicite um novo.";
 
     private final UsuarioRepository usuarioRepository;
     private final TokenVerificacaoService tokenVerificacaoService;
@@ -72,14 +72,14 @@ public class RecuperacaoSenhaService {
         Optional<Usuario> encontrado = usuarioRepository.findByEmail(request.email());
 
         if (encontrado.isEmpty()) {
-            log.debug("Recuperacao pedida para e-mail nao cadastrado.");
+            log.debug("Recuperação pedida para e-mail não cadastrado.");
             return;
         }
 
         Usuario usuario = encontrado.get();
 
         if (Boolean.FALSE.equals(usuario.getAtivo())) {
-            log.debug("Recuperacao pedida para usuario desativado: {}", usuario.getId());
+            log.debug("Recuperação pedida para usuário desativado: {}", usuario.getId());
             return;
         }
 
@@ -103,7 +103,7 @@ public class RecuperacaoSenhaService {
     @Transactional
     public void redefinir(RedefinicaoSenhaRequest request) {
         if (!request.senhaNova().equals(request.senhaNovaConfirmacao())) {
-            throw new RegraDeNegocioException("A nova senha e a confirmacao nao conferem.");
+            throw new RegraDeNegocioException("A nova senha e a confirmação não conferem.");
         }
 
         // Inexistente, de outra finalidade, usado, expirado ou de usuario inativo:
@@ -113,6 +113,13 @@ public class RecuperacaoSenhaService {
 
         Usuario usuario = token.getUsuario();
 
+        // Depois do token, e nao antes: so quem prova a posse da conta pode saber se a
+        // senha escolhida e a atual. A excecao desfaz a transacao, entao o link continua
+        // valendo para a pessoa tentar de novo com outra senha.
+        if (passwordEncoder.matches(request.senhaNova(), usuario.getSenha())) {
+            throw new RegraDeNegocioException("senhaNova", "A nova senha deve ser diferente da atual.");
+        }
+
         usuario.setSenha(passwordEncoder.encode(request.senhaNova()));
         usuario.setSenhaAlteradaEm(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
         usuarioRepository.save(usuario);
@@ -121,6 +128,6 @@ public class RecuperacaoSenhaService {
         // troca, nenhum link antigo de recuperacao pode continuar valendo.
         tokenVerificacaoService.consumir(token);
 
-        log.info("Senha redefinida por recuperacao para o usuario {}.", usuario.getId());
+        log.info("Senha redefinida por recuperação para o usuário {}.", usuario.getId());
     }
 }

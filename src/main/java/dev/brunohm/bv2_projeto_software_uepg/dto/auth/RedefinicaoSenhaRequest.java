@@ -11,15 +11,15 @@ import jakarta.validation.constraints.Size;
 public record RedefinicaoSenhaRequest(
 
         @Schema(description = "O token que veio no link do e-mail.")
-        @NotBlank(message = "O token e obrigatorio")
+        @NotBlank(message = "O token é obrigatório")
         String token,
 
-        @Schema(description = "A nova senha. O limite de 72 e o do BCrypt, que trunca acima disso.")
-        @NotBlank(message = "A nova senha e obrigatoria")
+        @Schema(description = "A nova senha. O limite de 72 é o do BCrypt, que trunca acima disso.")
+        @NotBlank(message = "A nova senha é obrigatória")
         @Size(min = 8, max = 72, message = "A senha deve ter entre 8 e 72 caracteres")
         String senhaNova,
 
-        @Schema(description = "Repeticao da nova senha. Precisa ser identica a senhaNova.")
-        @NotBlank(message = "A confirmacao da nova senha e obrigatoria")
+        @Schema(description = "Repetição da nova senha. Precisa ser idêntica à senhaNova.")
+        @NotBlank(message = "A confirmação da nova senha é obrigatória")
         String senhaNovaConfirmacao) {
 }

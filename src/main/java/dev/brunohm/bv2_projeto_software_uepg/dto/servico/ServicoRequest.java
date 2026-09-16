@@ -14,15 +14,15 @@ import jakarta.validation.constraints.Size;
  */
 public record ServicoRequest(
 
-        @NotBlank(message = "O nome e obrigatorio")
-        @Size(max = 50, message = "O nome deve ter no maximo 50 caracteres")
+        @NotBlank(message = "O nome é obrigatório")
+        @Size(max = 50, message = "O nome deve ter no máximo 50 caracteres")
         String nome,
 
-        @Size(max = 500, message = "A descricao deve ter no maximo 500 caracteres")
+        @Size(max = 500, message = "A descrição deve ter no máximo 500 caracteres")
         String descricao,
 
-        @NotNull(message = "O valor e obrigatorio")
-        @DecimalMin(value = "0.00", message = "O valor nao pode ser negativo")
-        @Digits(integer = 7, fraction = 2, message = "O valor deve ter no maximo 7 inteiros e 2 decimais")
+        @NotNull(message = "O valor é obrigatório")
+        @DecimalMin(value = "0.00", message = "O valor não pode ser negativo")
+        @Digits(integer = 7, fraction = 2, message = "O valor deve ter no máximo 7 inteiros e 2 decimais")
         BigDecimal valor) {
 }

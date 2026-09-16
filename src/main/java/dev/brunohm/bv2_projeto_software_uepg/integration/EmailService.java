@@ -47,8 +47,8 @@ public class EmailService {
      */
     public void enviarRecuperacaoSenha(String destinatario, String nome, String link,
             long expiracaoMinutos) {
-        enviar(destinatario, "Redefinicao de senha - BV2",
-                corpoRecuperacaoSenha(nome, link, expiracaoMinutos), "recuperacao de senha");
+        enviar(destinatario, "Redefinição de senha - BV2",
+                corpoRecuperacaoSenha(nome, link, expiracaoMinutos), "recuperação de senha");
     }
 
     /**
@@ -59,7 +59,7 @@ public class EmailService {
     public void enviarConfirmacaoEmail(String destinatario, String nome, String link,
             long expiracaoMinutos) {
         enviar(destinatario, "Confirme seu novo e-mail - BV2",
-                corpoConfirmacaoEmail(nome, link, expiracaoMinutos), "confirmacao de e-mail");
+                corpoConfirmacaoEmail(nome, link, expiracaoMinutos), "confirmação de e-mail");
     }
 
     /**
@@ -74,7 +74,7 @@ public class EmailService {
          * token, so nao entrega o e-mail.
          */
         if (usuarioSmtp == null || usuarioSmtp.isBlank()) {
-            log.warn("spring.mail.username nao configurado: e-mail de {} nao enviado.", contexto);
+            log.warn("spring.mail.username não configurado: e-mail de {} não enviado.", contexto);
             return;
         }
 
@@ -113,13 +113,13 @@ public class EmailService {
                   <p>Olá, %s!</p>
 
                   <p>Recebemos um pedido para redefinir a senha da sua conta no BV2.
-                     Para escolher uma nova senha, acesse o endereco abaixo:</p>
+                     Para escolher uma nova senha, acesse o endereço abaixo:</p>
 
                   <p><a href="%s" style="color: #1d4ed8;">%s</a></p>
 
                   <p>O link vale por %d minutos e pode ser usado uma única vez.</p>
 
-                  <p>Se voce não pediu a redefinição, ignore este e-mail: sua senha
+                  <p>Se você não pediu a redefinição, ignore este e-mail: sua senha
                      atual continua valendo e nada muda.</p>
 
                   <p style="margin-top: 24px; color: #666; font-size: 13px;">

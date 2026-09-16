@@ -8,6 +8,6 @@ public class RecursoNaoEncontradoException extends RuntimeException {
     }
 
     public static RecursoNaoEncontradoException de(String recurso, Object id) {
-        return new RecursoNaoEncontradoException(recurso + " nao encontrado(a) para o id " + id);
+        return new RecursoNaoEncontradoException(recurso + " não encontrado(a) para o id " + id);
     }
 }

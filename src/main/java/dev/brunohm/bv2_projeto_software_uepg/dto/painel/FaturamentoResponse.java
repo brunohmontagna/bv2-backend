@@ -9,7 +9,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * Dinheiro do periodo, separado entre o que ja entrou e o que ainda esta na
  * oficina. OS cancelada nao entra em nenhum dos dois.
  */
-@Schema(description = "Faturamento do periodo")
+@Schema(description = "Faturamento do período")
 public record FaturamentoResponse(
         @Schema(description = "Soma do valorTotal das OS ENTREGUE, pela dataEntregue")
         BigDecimal faturamentoRealizado,
@@ -17,12 +17,12 @@ public record FaturamentoResponse(
         @Schema(description = "Soma do valorTotal das OS EM_ANDAMENTO e CONCLUIDA, pela dataEntrada")
         BigDecimal faturamentoEmAberto,
 
-        @Schema(description = "Faturamento realizado dividido pelas OS entregues; zero quando nao houve entrega")
+        @Schema(description = "Faturamento realizado dividido pelas OS entregues; zero quando não houve entrega")
         BigDecimal ticketMedio,
 
         long ordensEntregues,
 
-        @Schema(description = "OS do periodo cujo valorTotal foi fixado a mao (desconto, preco fechado)")
+        @Schema(description = "OS do período cujo valorTotal foi fixado à mão (desconto, preço fechado)")
         long ordensComValorManual) {
 
     private static final int CASAS_DECIMAIS = 2;

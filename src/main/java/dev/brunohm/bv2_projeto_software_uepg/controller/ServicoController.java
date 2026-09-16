@@ -34,17 +34,17 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/servicos")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Servicos", description = "Catalogo de servicos prestados pela M2. Leitura e escrita para qualquer usuario autenticado")
+@Tag(name = "Serviços", description = "Catálogo de serviços prestados pela M2. Leitura e escrita para qualquer usuário autenticado")
 public class ServicoController {
 
     private final ServicoService servicoService;
 
     @PostMapping
-    @Operation(summary = "Cadastra um servico (nome + valor precisam ser unicos no catalogo)")
+    @Operation(summary = "Cadastra um serviço (nome + valor precisam ser únicos no catálogo)")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Servico criado"),
-            @ApiResponse(responseCode = "400", description = "Dados invalidos"),
-            @ApiResponse(responseCode = "409", description = "Ja existe um servico com esse nome e valor")
+            @ApiResponse(responseCode = "201", description = "Serviço criado"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos"),
+            @ApiResponse(responseCode = "409", description = "Já existe um serviço com esse nome e valor")
     })
     public ResponseEntity<ServicoResponse> criar(@Valid @RequestBody ServicoRequest request) {
         ServicoResponse criado = servicoService.criar(request);
@@ -56,7 +56,7 @@ public class ServicoController {
     }
 
     @GetMapping
-    @Operation(summary = "Lista servicos de forma paginada, com filtro por nome e situacao")
+    @Operation(summary = "Lista serviços de forma paginada, com filtro por nome e situação")
     public ResponseEntity<PaginaResponse<ServicoResponse>> listar(
             @RequestParam(required = false) String nome,
             @RequestParam(required = false) Boolean ativo,
@@ -65,22 +65,22 @@ public class ServicoController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Busca um servico pelo id")
+    @Operation(summary = "Busca um serviço pelo id")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Servico encontrado"),
-            @ApiResponse(responseCode = "404", description = "Servico nao encontrado")
+            @ApiResponse(responseCode = "200", description = "Serviço encontrado"),
+            @ApiResponse(responseCode = "404", description = "Serviço não encontrado")
     })
     public ResponseEntity<ServicoResponse> buscarPorId(@PathVariable Long id) {
         return ResponseEntity.ok(servicoService.buscarPorId(id));
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Atualiza nome, descricao e valor do servico")
+    @Operation(summary = "Atualiza nome, descrição e valor do serviço")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Servico atualizado"),
-            @ApiResponse(responseCode = "400", description = "Dados invalidos"),
-            @ApiResponse(responseCode = "404", description = "Servico nao encontrado"),
-            @ApiResponse(responseCode = "409", description = "Ja existe outro servico com esse nome e valor")
+            @ApiResponse(responseCode = "200", description = "Serviço atualizado"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos"),
+            @ApiResponse(responseCode = "404", description = "Serviço não encontrado"),
+            @ApiResponse(responseCode = "409", description = "Já existe outro serviço com esse nome e valor")
     })
     public ResponseEntity<ServicoResponse> atualizar(
             @PathVariable Long id,
@@ -89,23 +89,23 @@ public class ServicoController {
     }
 
     @PatchMapping("/{id}/ativar")
-    @Operation(summary = "Reativa o servico (idempotente)")
+    @Operation(summary = "Reativa o serviço (idempotente)")
     public ResponseEntity<ServicoResponse> ativar(@PathVariable Long id) {
         return ResponseEntity.ok(servicoService.alterarSituacao(id, true));
     }
 
     @PatchMapping("/{id}/desativar")
-    @Operation(summary = "Inativa o servico sem apagar o historico (idempotente)")
+    @Operation(summary = "Inativa o serviço sem apagar o histórico (idempotente)")
     public ResponseEntity<ServicoResponse> desativar(@PathVariable Long id) {
         return ResponseEntity.ok(servicoService.alterarSituacao(id, false));
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Remove definitivamente o servico")
+    @Operation(summary = "Remove definitivamente o serviço")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Servico removido"),
-            @ApiResponse(responseCode = "404", description = "Servico nao encontrado"),
-            @ApiResponse(responseCode = "409", description = "Servico usado em ordens de servico")
+            @ApiResponse(responseCode = "204", description = "Serviço removido"),
+            @ApiResponse(responseCode = "404", description = "Serviço não encontrado"),
+            @ApiResponse(responseCode = "409", description = "Serviço usado em ordens de serviço")
     })
     public ResponseEntity<Void> excluir(@PathVariable Long id) {
         servicoService.excluir(id);
