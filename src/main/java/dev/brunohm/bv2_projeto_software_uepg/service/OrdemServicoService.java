@@ -220,8 +220,7 @@ public class OrdemServicoService {
         }
         ordemServico.setStatus(destino);
 
-        OrdemServicoResponse resposta = OrdemServicoResponse
-                .fromEntity(ordemServicoRepository.save(ordemServico));
+        OrdemServicoResponse resposta = OrdemServicoResponse.fromEntity(ordemServicoRepository.save(ordemServico));
 
         /*
          * Dispara a notificacao ao cliente. O consumidor roda em AFTER_COMMIT, entao
