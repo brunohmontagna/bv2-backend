@@ -509,9 +509,15 @@ status, então ele mesmo chama o n8n; não há polling nem rota de entrada:
 transicionar() ──commit──> evento AFTER_COMMIT ──> POST no webhook do n8n ──> WhatsApp
 ```
 
-**Duas tabelas, dois papéis.** `templates_notificacao` é configuração (o que a M2 edita);
-`notificacoes` é log de execução (o que o sistema escreveu). A API **edita a primeira e só
-lê a segunda** — não há `POST` nem `DELETE` de notificação.
+**Duas tabelas, dois papéis.** `templates_notificacao` é configuração (o que a M2 liga e
+desliga); `notificacoes` é log de execução (o que o sistema escreveu). A API **edita a
+primeira e só lê a segunda** — não há `POST` nem `DELETE` de notificação.
+
+**O texto do template não é editável pela M2.** Pela API oficial do WhatsApp, mensagem
+iniciada pela empresa sai de um modelo pré-aprovado, então quem define o texto é o modelo, não
+a tela. O `PUT` aceita `conteudo` e o backend valida os placeholders, mas o front manda de
+volta o conteudo que já está salvo e só mexe na flag `ativo`; na tela o texto aparece como
+prévia, com os placeholders trocados pelos exemplos do `GET /notificacoes/placeholders`.
 
 - **A chave é o próprio `StatusOs`**, não um enum de "tipo de notificação". O que dispara o
   envio é a transição da OS; um segundo enum paralelo criaria duas fontes de verdade. Foi o
