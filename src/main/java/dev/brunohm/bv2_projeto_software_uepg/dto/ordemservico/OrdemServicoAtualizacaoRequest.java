@@ -8,6 +8,6 @@ import jakarta.validation.constraints.Size;
  */
 public record OrdemServicoAtualizacaoRequest(
 
-        @Size(max = 500, message = "A observacao deve ter no maximo 500 caracteres")
+        @Size(max = 500, message = "A observação deve ter no máximo 500 caracteres")
         String observacao) {
 }

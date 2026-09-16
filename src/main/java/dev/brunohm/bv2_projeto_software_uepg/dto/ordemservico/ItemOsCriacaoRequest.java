@@ -6,14 +6,14 @@ import jakarta.validation.constraints.Size;
 
 public record ItemOsCriacaoRequest(
 
-        @Schema(description = "Equipamento a ser atendido. Precisa pertencer ao mesmo cliente da ordem de servico.")
-        @NotNull(message = "O equipamento e obrigatorio")
+        @Schema(description = "Equipamento a ser atendido. Precisa pertencer ao mesmo cliente da ordem de serviço.")
+        @NotNull(message = "O equipamento é obrigatório")
         Long equipamentoId,
 
-        @Schema(description = "Servico a ser executado. Precisa estar ativo no catalogo.")
-        @NotNull(message = "O servico e obrigatorio")
+        @Schema(description = "Serviço a ser executado. Precisa estar ativo no catálogo.")
+        @NotNull(message = "O serviço é obrigatório")
         Long servicoId,
 
-        @Size(max = 500, message = "A observacao deve ter no maximo 500 caracteres")
+        @Size(max = 500, message = "A observação deve ter no máximo 500 caracteres")
         String observacao) {
 }

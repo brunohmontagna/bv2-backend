@@ -39,7 +39,7 @@ public class NotificacaoOsListener {
              * Ultima barreira. A OS ja esta commitada quando isto roda, entao nada
              * aqui pode escapar e virar erro na resposta de quem trocou o status.
              */
-            log.error("Falha ao notificar a transicao da OS {} para {}: {}",
+            log.error("Falha ao notificar a transição da OS {} para {}: {}",
                     evento.ordemServicoId(), evento.statusNovo(), e.toString(), e);
         }
     }

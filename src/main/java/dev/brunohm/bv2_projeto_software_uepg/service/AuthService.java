@@ -28,7 +28,7 @@ public class AuthService {
                 new UsernamePasswordAuthenticationToken(request.email(), request.senha()));
 
         Usuario usuario = usuarioRepository.findByEmail(request.email())
-                .orElseThrow(() -> new BadCredentialsException("Credenciais invalidas"));
+                .orElseThrow(() -> new BadCredentialsException("Credenciais inválidas"));
 
         JwtService.TokenGerado gerado = jwtService.gerarToken(usuario);
         return LoginResponse.bearer(gerado.token(), gerado.expiraEm());

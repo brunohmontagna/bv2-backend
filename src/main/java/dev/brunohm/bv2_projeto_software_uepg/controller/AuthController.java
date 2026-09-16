@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
-@Tag(name = "Autenticacao", description = "Emissao de tokens JWT, recuperacao de senha e confirmacao de e-mail. Rotas publicas")
+@Tag(name = "Autenticação", description = "Emissão de tokens JWT, recuperação de senha e confirmação de e-mail. Rotas públicas")
 public class AuthController {
 
     private final AuthService authService;
@@ -32,11 +32,11 @@ public class AuthController {
     private final AlteracaoEmailService alteracaoEmailService;
 
     @PostMapping("/login")
-    @Operation(summary = "Autentica um usuario e devolve o token JWT")
+    @Operation(summary = "Autentica um usuário e devolve o token JWT")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Autenticado"),
-            @ApiResponse(responseCode = "400", description = "Dados invalidos"),
-            @ApiResponse(responseCode = "401", description = "Credenciais invalidas")
+            @ApiResponse(responseCode = "400", description = "Dados inválidos"),
+            @ApiResponse(responseCode = "401", description = "Credenciais inválidas")
     })
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.autenticar(request));
@@ -48,8 +48,8 @@ public class AuthController {
      */
     @PostMapping("/senha/esqueci")
     @Operation(summary = "Envia por e-mail um link para redefinir a senha",
-            description = "Responde 202 mesmo quando o e-mail nao esta cadastrado ou o usuario esta inativo: "
-                    + "a resposta e identica nos tres casos, para nao revelar quem tem conta.")
+            description = "Responde 202 mesmo quando o e-mail não está cadastrado ou o usuário está inativo: "
+                    + "a resposta é idêntica nos três casos, para não revelar quem tem conta.")
     @ApiResponses({
             @ApiResponse(responseCode = "202", description = "Pedido recebido. Se a conta existir, o e-mail sai"),
             @ApiResponse(responseCode = "400", description = "E-mail ausente ou mal formatado")
@@ -61,12 +61,12 @@ public class AuthController {
 
     @PostMapping("/senha/redefinir")
     @Operation(summary = "Redefine a senha usando o token recebido por e-mail",
-            description = "O token vale uma unica vez e expira. Token inexistente, ja usado, expirado ou "
-                    + "de usuario inativo devolvem a mesma mensagem, de proposito.")
+            description = "O token vale uma única vez e expira. Token inexistente, já usado, expirado ou "
+                    + "de usuário inativo devolvem a mesma mensagem, de propósito.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Senha redefinida. Os tokens emitidos antes deixam de valer"),
-            @ApiResponse(responseCode = "400", description = "Dados invalidos"),
-            @ApiResponse(responseCode = "422", description = "Link invalido ou expirado, ou confirmacao divergente")
+            @ApiResponse(responseCode = "400", description = "Dados inválidos"),
+            @ApiResponse(responseCode = "422", description = "Link inválido ou expirado, confirmação divergente ou nova senha igual à atual")
     })
     public ResponseEntity<Void> redefinirSenha(@Valid @RequestBody RedefinicaoSenhaRequest request) {
         recuperacaoSenhaService.redefinir(request);
@@ -78,15 +78,15 @@ public class AuthController {
      * costuma acontecer em outro navegador, onde nao ha sessao nenhuma.
      */
     @PostMapping("/email/confirmar")
-    @Operation(summary = "Confirma a troca de e-mail usando o token enviado ao endereco novo",
-            description = "Efetiva a troca e derruba as sessoes abertas: o subject do JWT e o e-mail, entao "
-                    + "os tokens emitidos com o endereco antigo deixam de valer. Token inexistente, usado, "
-                    + "expirado ou de outro fluxo devolvem a mesma mensagem, de proposito.")
+    @Operation(summary = "Confirma a troca de e-mail usando o token enviado ao endereço novo",
+            description = "Efetiva a troca e derruba as sessões abertas: o subject do JWT é o e-mail, então "
+                    + "os tokens emitidos com o endereço antigo deixam de valer. Token inexistente, usado, "
+                    + "expirado ou de outro fluxo devolvem a mesma mensagem, de propósito.")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "E-mail alterado. As sessoes abertas deixam de valer"),
+            @ApiResponse(responseCode = "204", description = "E-mail alterado. As sessões abertas deixam de valer"),
             @ApiResponse(responseCode = "400", description = "Token ausente"),
-            @ApiResponse(responseCode = "409", description = "O endereco foi cadastrado por outro usuario desde o pedido"),
-            @ApiResponse(responseCode = "422", description = "Link invalido ou expirado")
+            @ApiResponse(responseCode = "409", description = "O endereço foi cadastrado por outro usuário desde o pedido"),
+            @ApiResponse(responseCode = "422", description = "Link inválido ou expirado")
     })
     public ResponseEntity<Void> confirmarEmail(@Valid @RequestBody ConfirmacaoEmailRequest request) {
         alteracaoEmailService.confirmar(request);

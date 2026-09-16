@@ -15,27 +15,27 @@ import jakarta.validation.constraints.Size;
 
 public record OrdemServicoCriacaoRequest(
 
-        @Schema(description = "Cliente da M2 dono da ordem de servico. Precisa estar ativo.")
-        @NotNull(message = "O cliente e obrigatorio")
+        @Schema(description = "Cliente da M2 dono da ordem de serviço. Precisa estar ativo.")
+        @NotNull(message = "O cliente é obrigatório")
         Long clienteId,
 
-        @Size(max = 500, message = "A observacao deve ter no maximo 500 caracteres")
+        @Size(max = 500, message = "A observação deve ter no máximo 500 caracteres")
         String observacao,
 
-        @Schema(description = "Data de entrada do equipamento na assistencia. Se omitida, assume a data de hoje.")
-        @PastOrPresent(message = "A data de entrada nao pode ser futura")
+        @Schema(description = "Data de entrada do equipamento na assistência. Se omitida, assume a data de hoje.")
+        @PastOrPresent(message = "A data de entrada não pode ser futura")
         LocalDate dataEntrada,
 
-        @Schema(description = "Itens que compoem a OS (equipamento + servico). Obrigatorio: "
-                + "uma OS nao existe sem ao menos um servico lancado.")
-        @NotEmpty(message = "A ordem de servico precisa ter ao menos um item")
+        @Schema(description = "Itens que compõem a OS (equipamento + serviço). Obrigatório: "
+                + "uma OS não existe sem ao menos um serviço lançado.")
+        @NotEmpty(message = "A ordem de serviço precisa ter ao menos um item")
         @Valid
         List<ItemOsCriacaoRequest> itens,
 
-        @Schema(description = "Valor total definido a mao (desconto, preco fechado). Se enviado, "
-                + "congela o valorTotal e ele deixa de ser recalculado pelos itens ate um reset. "
-                + "Se omitido, o valorTotal e a soma dos servicos dos itens.")
-        @DecimalMin(value = "0.00", message = "O valor total nao pode ser negativo")
-        @Digits(integer = 7, fraction = 2, message = "O valor total deve ter no maximo 7 inteiros e 2 decimais")
+        @Schema(description = "Valor total definido à mão (desconto, preço fechado). Se enviado, "
+                + "congela o valorTotal e ele deixa de ser recalculado pelos itens até um reset. "
+                + "Se omitido, o valorTotal é a soma dos serviços dos itens.")
+        @DecimalMin(value = "0.00", message = "O valor total não pode ser negativo")
+        @Digits(integer = 7, fraction = 2, message = "O valor total deve ter no máximo 7 inteiros e 2 decimais")
         BigDecimal valorTotal) {
 }

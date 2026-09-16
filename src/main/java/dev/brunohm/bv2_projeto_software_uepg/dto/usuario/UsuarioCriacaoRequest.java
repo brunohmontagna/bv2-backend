@@ -9,20 +9,20 @@ import jakarta.validation.constraints.Size;
  * O papel nao entra aqui: todo usuario criado pela API nasce ADMIN. MASTER e a
  * equipe desenvolvedora, semeada na migration, e nao e atribuivel por requisicao.
  */
-@Schema(description = "Dados de acesso de um novo usuario. Criado sempre com papel ADMIN.")
+@Schema(description = "Dados de acesso de um novo usuário. Criado sempre com papel ADMIN.")
 public record UsuarioCriacaoRequest(
 
-        @NotBlank(message = "O nome e obrigatorio")
-        @Size(max = 50, message = "O nome deve ter no maximo 50 caracteres")
+        @NotBlank(message = "O nome é obrigatório")
+        @Size(max = 50, message = "O nome deve ter no máximo 50 caracteres")
         String nome,
 
-        @NotBlank(message = "O e-mail e obrigatorio")
-        @Email(message = "E-mail em formato invalido")
-        @Size(max = 50, message = "O e-mail deve ter no maximo 50 caracteres")
+        @NotBlank(message = "O e-mail é obrigatório")
+        @Email(message = "E-mail em formato inválido")
+        @Size(max = 50, message = "O e-mail deve ter no máximo 50 caracteres")
         String email,
 
         // Limite de 72 porque o BCrypt trunca silenciosamente acima disso.
-        @NotBlank(message = "A senha e obrigatoria")
+        @NotBlank(message = "A senha é obrigatória")
         @Size(min = 8, max = 72, message = "A senha deve ter entre 8 e 72 caracteres")
         String senha) {
 }

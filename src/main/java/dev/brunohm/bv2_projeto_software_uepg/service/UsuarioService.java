@@ -45,7 +45,7 @@ public class UsuarioService {
     public UsuarioResponse criar(UsuarioCriacaoRequest request) {
         if (usuarioRepository.existsByEmail(request.email())) {
             throw new RecursoDuplicadoException(
-                    "Ja existe um usuario cadastrado com o e-mail " + request.email());
+                    "Já existe um usuário cadastrado com o e-mail " + request.email());
         }
 
         Usuario usuario = usuarioRepository.save(Usuario.builder()
@@ -93,7 +93,7 @@ public class UsuarioService {
 
         // O MASTER e unico: desativa-lo trancaria o cadastro de usuarios para sempre.
         if (!ativo && RoleUsuario.MASTER.equals(usuario.getRole())) {
-            throw new RegraDeNegocioException("O usuario MASTER nao pode ser desativado.");
+            throw new RegraDeNegocioException("O usuário MASTER não pode ser desativado.");
         }
 
         usuario.setAtivo(ativo);
@@ -128,11 +128,11 @@ public class UsuarioService {
         Usuario usuario = usuarioAutenticado();
 
         if (!passwordEncoder.matches(request.senhaAtual(), usuario.getSenha())) {
-            throw new RegraDeNegocioException("A senha atual esta incorreta.");
+            throw new RegraDeNegocioException("A senha atual está incorreta.");
         }
 
         if (!request.senhaNova().equals(request.senhaNovaConfirmacao())) {
-            throw new RegraDeNegocioException("A nova senha e a confirmacao nao conferem.");
+            throw new RegraDeNegocioException("A nova senha e a confirmação não conferem.");
         }
 
         if (passwordEncoder.matches(request.senhaNova(), usuario.getSenha())) {
@@ -151,7 +151,7 @@ public class UsuarioService {
 
     private Usuario buscarEntidade(Long id) {
         return usuarioRepository.findById(id)
-                .orElseThrow(() -> RecursoNaoEncontradoException.de("Usuario", id));
+                .orElseThrow(() -> RecursoNaoEncontradoException.de("Usuário", id));
     }
 
     private Specification<Usuario> filtrar(String nome, Boolean ativo) {

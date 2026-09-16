@@ -19,7 +19,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * Nada aqui e recortado por periodo: quantas OS estao em cada status e quantos
  * cadastros existem sao estado atual, nao movimento da janela analisada.
  */
-@Schema(description = "Contagens de estado atual, sem recorte de periodo")
+@Schema(description = "Contagens de estado atual, sem recorte de período")
 public record ResumoGeralResponse(
         @Schema(description = "Quantidade de OS em cada status, com os quatro status sempre presentes")
         Map<StatusOs, Long> ordensPorStatus,

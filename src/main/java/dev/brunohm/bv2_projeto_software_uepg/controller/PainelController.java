@@ -22,7 +22,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/painel")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Painel", description = "Indicadores consolidados da operacao. Leitura para qualquer usuario autenticado")
+@Tag(name = "Painel", description = "Indicadores consolidados da operação. Leitura para qualquer usuário autenticado")
 public class PainelController {
 
     private final PainelService painelService;
@@ -32,15 +32,15 @@ public class PainelController {
      * API continua sendo o ADMIN no cadastro de usuarios.
      */
     @GetMapping
-    @Operation(summary = "Consolida resumo, faturamento, serie mensal e rankings do periodo "
-            + "(padrao: ultimos 30 dias). O periodo e inclusivo nas duas pontas e cada metrica "
-            + "usa a data do proprio evento: entrada e execucao por dataEntrada, faturamento "
+    @Operation(summary = "Consolida resumo, faturamento, série mensal e rankings do período "
+            + "(padrão: últimos 30 dias). O período é inclusivo nas duas pontas e cada métrica "
+            + "usa a data do próprio evento: entrada e execução por dataEntrada, faturamento "
             + "realizado e entrega por dataEntregue")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Indicadores do periodo; periodo sem movimento devolve tudo zerado"),
+            @ApiResponse(responseCode = "200", description = "Indicadores do período; período sem movimento devolve tudo zerado"),
             @ApiResponse(responseCode = "400", description = "Data mal formatada (use AAAA-MM-DD)"),
-            @ApiResponse(responseCode = "401", description = "Token ausente ou invalido"),
-            @ApiResponse(responseCode = "422", description = "Data inicial posterior a data final")
+            @ApiResponse(responseCode = "401", description = "Token ausente ou inválido"),
+            @ApiResponse(responseCode = "422", description = "Data inicial posterior à data final")
     })
     public ResponseEntity<PainelResponse> consultar(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,

@@ -56,7 +56,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // Desativar um usuario precisa valer na hora. Sem isto, o token dele
             // continuaria aceito ate expirar (jwt.expiracao-minutos, 120 por padrao).
             if (!usuario.isEnabled()) {
-                logger.debug("Token de usuario desativado: " + email);
+                logger.debug("Token de usuário desativado: " + email);
                 return;
             }
 
@@ -64,7 +64,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // token continuaria dentro pelos 120 minutos de validade justamente no
             // cenario em que a vitima troca a senha as pressas.
             if (senhaTrocadaDepoisDe(usuario, decodificado.emitidoEm())) {
-                logger.debug("Token anterior a ultima troca de senha: " + email);
+                logger.debug("Token anterior à última troca de senha: " + email);
                 return;
             }
 
@@ -74,7 +74,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(autenticacao);
         } catch (UsernameNotFoundException ex) {
             // Token assinado por nos, mas o usuario foi removido depois. Segue sem autenticar.
-            logger.debug("Token valido para usuario inexistente: " + email);
+            logger.debug("Token válido para usuário inexistente: " + email);
         }
     }
 

@@ -124,7 +124,7 @@ postgresql` resolve.
 ## Comandos
 
 ```bash
-# subir a aplicação (carregue o .env antes: DB_*, JWT_*)
+# subir a aplicação (o .env é lido sozinho via spring.config.import; rode de dentro de backend/)
 ./mvnw spring-boot:run
 
 # compilar / rodar testes
@@ -245,6 +245,12 @@ MASTER redefine a senha de outro usuário: quem esqueceu usa a recuperação com
 
 As duas rotas de `/auth/senha` são **públicas** — quem esqueceu a senha não tem como se
 autenticar para pedir a troca.
+
+**A nova senha precisa ser diferente da atual**, nos dois caminhos (422). Na recuperação a
+checagem vem **depois** de validar o token — só quem provou a posse da conta pode descobrir se
+a senha escolhida é a atual — e a exceção desfaz a transação, então o link continua valendo
+para uma nova tentativa. O 422 sai com `erros: { senhaNova }` (`RegraDeNegocioException` com
+campo), para o front mostrar o aviso no campo e não no alerta de link inválido.
 
 **Senha atual errada responde 422, não 401.** O 401 seria errado (o token é válido, o
 usuário *está* autenticado) e perigoso na prática: interceptador de front costuma deslogar

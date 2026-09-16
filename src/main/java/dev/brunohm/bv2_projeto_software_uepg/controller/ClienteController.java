@@ -35,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/clientes")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
-@Tag(name = "Clientes", description = "Cadastro dos clientes da M2: quem leva o equipamento para consertar. Nao fazem login")
+@Tag(name = "Clientes", description = "Cadastro dos clientes da M2: quem leva o equipamento para consertar. Não fazem login")
 public class ClienteController {
 
     private final ClienteService clienteService;
@@ -44,7 +44,7 @@ public class ClienteController {
     @Operation(summary = "Cadastra um cliente da M2")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Cliente criado"),
-            @ApiResponse(responseCode = "400", description = "Dados invalidos"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos"),
                 })
     public ResponseEntity<ClienteResponse> criar(@Valid @RequestBody ClienteCriacaoRequest request) {
         ClienteResponse criado = clienteService.criar(request);
@@ -56,7 +56,7 @@ public class ClienteController {
     }
 
     @GetMapping
-    @Operation(summary = "Lista clientes de forma paginada, com filtro por nome e situacao")
+    @Operation(summary = "Lista clientes de forma paginada, com filtro por nome e situação")
     public ResponseEntity<PaginaResponse<ClienteResponse>> listar(
             @RequestParam(required = false) String nome,
             @RequestParam(required = false) Boolean ativo,
@@ -68,7 +68,7 @@ public class ClienteController {
     @Operation(summary = "Busca um cliente pelo id")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Cliente encontrado"),
-            @ApiResponse(responseCode = "404", description = "Cliente nao encontrado")
+            @ApiResponse(responseCode = "404", description = "Cliente não encontrado")
     })
     public ResponseEntity<ClienteResponse> buscarPorId(@PathVariable Long id) {
         return ResponseEntity.ok(clienteService.buscarPorId(id));
@@ -89,7 +89,7 @@ public class ClienteController {
     }
 
     @PatchMapping("/{id}/desativar")
-    @Operation(summary = "Inativa o cliente sem apagar o historico (idempotente)")
+    @Operation(summary = "Inativa o cliente sem apagar o histórico (idempotente)")
     public ResponseEntity<ClienteResponse> desativar(@PathVariable Long id) {
         return ResponseEntity.ok(clienteService.alterarSituacao(id, false));
     }
@@ -98,8 +98,8 @@ public class ClienteController {
     @Operation(summary = "Remove definitivamente o cliente. Para o caso comum, prefira desativar")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Cliente removido"),
-            @ApiResponse(responseCode = "404", description = "Cliente nao encontrado"),
-            @ApiResponse(responseCode = "409", description = "Cliente possui vinculos e nao pode ser removido")
+            @ApiResponse(responseCode = "404", description = "Cliente não encontrado"),
+            @ApiResponse(responseCode = "409", description = "Cliente possui vínculos e não pode ser removido")
     })
     public ResponseEntity<Void> excluir(@PathVariable Long id) {
         clienteService.excluir(id);

@@ -12,8 +12,8 @@ import jakarta.validation.constraints.Digits;
  */
 public record OrdemServicoValorTotalRequest(
 
-        @Schema(description = "Novo valor total. Null reseta para o modo automatico (soma dos itens).")
-        @DecimalMin(value = "0.00", message = "O valor total nao pode ser negativo")
-        @Digits(integer = 7, fraction = 2, message = "O valor total deve ter no maximo 7 inteiros e 2 decimais")
+        @Schema(description = "Novo valor total. Null reseta para o modo automático (soma dos itens).")
+        @DecimalMin(value = "0.00", message = "O valor total não pode ser negativo")
+        @Digits(integer = 7, fraction = 2, message = "O valor total deve ter no máximo 7 inteiros e 2 decimais")
         BigDecimal valorTotal) {
 }
