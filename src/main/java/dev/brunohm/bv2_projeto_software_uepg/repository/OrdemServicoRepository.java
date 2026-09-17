@@ -12,6 +12,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -46,7 +47,9 @@ public interface OrdemServicoRepository
     // ------------------------------------------------------------------
 
     /*
-     * Primeiras queries escritas a mao do projeto. Duas decisoes valem registro:
+     * Primeiras queries escritas a mao do projeto. Todas recebem o usuarioId da conta
+     * (ContaAtual): OS nao tem dono proprio e chega a ele por o.cliente.usuarioId.
+     * Duas decisoes valem registro:
      *
      * JPQL com projecao por construtor, e nao SQL nativo. Os enums sao tipos
      * nomeados do Postgres (status_os), entao no nativo toda comparacao precisaria
@@ -64,9 +67,10 @@ public interface OrdemServicoRepository
             select new dev.brunohm.bv2_projeto_software_uepg.dto.painel.projecao.ContagemStatusProjecao(
                        o.status, count(o))
             from OrdemServico o
+            where o.cliente.usuarioId = :usuarioId
             group by o.status
             """)
-    List<ContagemStatusProjecao> contarPorStatus();
+    List<ContagemStatusProjecao> contarPorStatus(@Param("usuarioId") Long usuarioId);
 
     /**
      * Faturamento realizado: a OS entregue e a que virou dinheiro, e o evento que a
@@ -81,10 +85,12 @@ public interface OrdemServicoRepository
             select new dev.brunohm.bv2_projeto_software_uepg.dto.painel.projecao.TotaisEntreguesProjecao(
                        sum(o.valorTotal), count(o))
             from OrdemServico o
-            where o.status = :status
+            where o.cliente.usuarioId = :usuarioId
+              and o.status = :status
               and o.dataEntregue between :dataInicio and :dataFim
             """)
-    TotaisEntreguesProjecao resumirEntregues(@Param("status") StatusOs status,
+    TotaisEntreguesProjecao resumirEntregues(@Param("usuarioId") Long usuarioId,
+            @Param("status") StatusOs status,
             @Param("dataInicio") LocalDate dataInicio,
             @Param("dataFim") LocalDate dataFim);
 
@@ -96,15 +102,18 @@ public interface OrdemServicoRepository
     @Query("""
             select sum(o.valorTotal)
             from OrdemServico o
-            where o.status in :statusEmAberto
+            where o.cliente.usuarioId = :usuarioId
+              and o.status in :statusEmAberto
               and o.dataEntrada between :dataInicio and :dataFim
             """)
-    BigDecimal somarEmAberto(@Param("statusEmAberto") Collection<StatusOs> statusEmAberto,
+    BigDecimal somarEmAberto(@Param("usuarioId") Long usuarioId,
+            @Param("statusEmAberto") Collection<StatusOs> statusEmAberto,
             @Param("dataInicio") LocalDate dataInicio,
             @Param("dataFim") LocalDate dataFim);
 
     /* Pela dataEntrada: a flag e definida na criacao ou enquanto a OS esta EM_ANDAMENTO. */
-    long countByValorTotalManualTrueAndDataEntradaBetween(LocalDate dataInicio, LocalDate dataFim);
+    long countByClienteUsuarioIdAndValorTotalManualTrueAndDataEntradaBetween(Long usuarioId,
+            LocalDate dataInicio, LocalDate dataFim);
 
     /*
      * extract(year/month) e JPQL padrao e devolve Integer. date_trunc foi descartado:
@@ -115,21 +124,25 @@ public interface OrdemServicoRepository
             select new dev.brunohm.bv2_projeto_software_uepg.dto.painel.projecao.SerieOrdensProjecao(
                        extract(year from o.dataEntrada), extract(month from o.dataEntrada), count(o))
             from OrdemServico o
-            where o.dataEntrada between :dataInicio and :dataFim
+            where o.cliente.usuarioId = :usuarioId
+              and o.dataEntrada between :dataInicio and :dataFim
             group by extract(year from o.dataEntrada), extract(month from o.dataEntrada)
             """)
-    List<SerieOrdensProjecao> serieOrdensAbertas(@Param("dataInicio") LocalDate dataInicio,
+    List<SerieOrdensProjecao> serieOrdensAbertas(@Param("usuarioId") Long usuarioId,
+            @Param("dataInicio") LocalDate dataInicio,
             @Param("dataFim") LocalDate dataFim);
 
     @Query("""
             select new dev.brunohm.bv2_projeto_software_uepg.dto.painel.projecao.SerieFaturamentoProjecao(
                        extract(year from o.dataEntregue), extract(month from o.dataEntregue), sum(o.valorTotal))
             from OrdemServico o
-            where o.status = :status
+            where o.cliente.usuarioId = :usuarioId
+              and o.status = :status
               and o.dataEntregue between :dataInicio and :dataFim
             group by extract(year from o.dataEntregue), extract(month from o.dataEntregue)
             """)
-    List<SerieFaturamentoProjecao> serieFaturamento(@Param("status") StatusOs status,
+    List<SerieFaturamentoProjecao> serieFaturamento(@Param("usuarioId") Long usuarioId,
+            @Param("status") StatusOs status,
             @Param("dataInicio") LocalDate dataInicio,
             @Param("dataFim") LocalDate dataFim);
 
@@ -147,13 +160,23 @@ public interface OrdemServicoRepository
                        c.id, c.nome, sum(o.valorTotal), count(o))
             from OrdemServico o
             join o.cliente c
-            where o.status = :status
+            where c.usuarioId = :usuarioId
+              and o.status = :status
               and o.dataEntregue between :dataInicio and :dataFim
             group by c.id, c.nome
             order by sum(o.valorTotal) desc, c.nome asc
             """)
-    List<RankingFaturamentoResponse> rankingClientesPorFaturamento(@Param("status") StatusOs status,
+    List<RankingFaturamentoResponse> rankingClientesPorFaturamento(@Param("usuarioId") Long usuarioId,
+            @Param("status") StatusOs status,
             @Param("dataInicio") LocalDate dataInicio,
             @Param("dataFim") LocalDate dataFim,
             Pageable limite);
+
+    /* Exclusao de conta (UsuarioService.excluir). O trigger trg_datas_os so reage a UPDATE, nao atrapalha o delete. */
+    @Modifying
+    @Query("""
+            delete from OrdemServico o
+             where o.cliente.id in (select c.id from Cliente c where c.usuarioId = :usuarioId)
+            """)
+    int excluirDaConta(@Param("usuarioId") Long usuarioId);
 }

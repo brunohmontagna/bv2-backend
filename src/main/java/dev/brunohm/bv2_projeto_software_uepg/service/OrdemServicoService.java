@@ -35,12 +35,15 @@ import dev.brunohm.bv2_projeto_software_uepg.repository.EquipamentoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ItemOsRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.OrdemServicoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ServicoRepository;
+import dev.brunohm.bv2_projeto_software_uepg.security.ContaAtual;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 
 /**
- * A OS pertence a um cliente da M2, que nao e usuario do sistema. Nao ha checagem
- * de posse: MASTER e ADMIN operam todas as ordens.
+ * A OS pertence a um cliente e herda dele a conta dona. Tudo fica restrito a conta
+ * da requisicao (ContaAtual): OS, cliente, equipamento ou servico de outra conta
+ * responde 404. Como as buscas de apoio ja filtram pela conta, nao ha como montar
+ * uma OS misturando cadastros de contas diferentes.
  */
 @Service
 @RequiredArgsConstructor
@@ -53,6 +56,7 @@ public class OrdemServicoService {
     private final EquipamentoRepository equipamentoRepository;
     private final ServicoRepository servicoRepository;
     private final ApplicationEventPublisher eventos;
+    private final ContaAtual contaAtual;
 
     // ------------------------------------------------------------------
     // Ordem de servico
@@ -360,6 +364,7 @@ public class OrdemServicoService {
 
     private OrdemServico buscarEntidade(Long id) {
         return ordemServicoRepository.findById(id)
+                .filter(ordemServico -> ordemServico.getCliente().getUsuarioId().equals(contaAtual.id()))
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Ordem de serviço", id));
     }
 
@@ -379,16 +384,19 @@ public class OrdemServicoService {
 
     private Equipamento buscarEquipamento(Long id) {
         return equipamentoRepository.findById(id)
+                .filter(equipamento -> equipamento.getCliente().getUsuarioId().equals(contaAtual.id()))
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Equipamento", id));
     }
 
     private Servico buscarServico(Long id) {
         return servicoRepository.findById(id)
+                .filter(servico -> servico.getUsuarioId().equals(contaAtual.id()))
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Serviço", id));
     }
 
     private Cliente buscarCliente(Long clienteId) {
         return clienteRepository.findById(clienteId)
+                .filter(cliente -> cliente.getUsuarioId().equals(contaAtual.id()))
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Cliente", clienteId));
     }
 
@@ -403,8 +411,10 @@ public class OrdemServicoService {
 
     private Specification<OrdemServico> filtrar(Long clienteId, StatusOs status,
             LocalDate dataInicio, LocalDate dataFim) {
+        Long usuarioId = contaAtual.id();
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
+            predicados.add(cb.equal(root.get("cliente").get("usuarioId"), usuarioId));
             if (clienteId != null) {
                 predicados.add(cb.equal(root.get("cliente").get("id"), clienteId));
             }

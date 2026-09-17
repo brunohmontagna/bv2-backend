@@ -318,6 +318,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -494,7 +501,15 @@
 					"name": "Listar clientes (paginado)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/clientes?page=0&size=20&sort=nome,asc",
 							"host": [
@@ -585,7 +600,15 @@
 					"name": "Listar com filtros (nome + ativo)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/clientes?nome=bruno&ativo=true&size=10",
 							"host": [
@@ -629,7 +652,15 @@
 					"name": "Buscar por id",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/clientes/{{clienteId}}",
 							"host": [
@@ -722,6 +753,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -811,7 +849,15 @@
 					"name": "Desativar cliente (PATCH)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/clientes/{{clienteId}}/desativar",
 							"host": [
@@ -874,7 +920,15 @@
 					"name": "Ativar cliente (PATCH)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/clientes/{{clienteId}}/ativar",
 							"host": [
@@ -937,7 +991,15 @@
 					"name": "Excluir cliente (204)",
 					"request": {
 						"method": "DELETE",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/clientes/{{clienteId}}",
 							"host": [
@@ -1871,6 +1933,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -2046,7 +2115,15 @@
 					"name": "Listar servicos (paginado)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/servicos?page=0&size=20&sort=nome,asc",
 							"host": [
@@ -2138,7 +2215,15 @@
 					"name": "Listar com filtros (nome + ativo)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/servicos?nome=troca&ativo=true&size=10",
 							"host": [
@@ -2194,7 +2279,15 @@
 					"name": "Buscar servico por id",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/servicos/{{servicoId}}",
 							"host": [
@@ -2288,6 +2381,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -2375,7 +2475,15 @@
 					"name": "Desativar servico (PATCH)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/servicos/{{servicoId}}/desativar",
 							"host": [
@@ -2438,7 +2546,15 @@
 					"name": "Ativar servico (PATCH)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/servicos/{{servicoId}}/ativar",
 							"host": [
@@ -2505,6 +2621,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -2548,7 +2671,15 @@
 					"name": "Servico inexistente (404)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/servicos/999999",
 							"host": [
@@ -2585,7 +2716,15 @@
 					"name": "Excluir servico (204)",
 					"request": {
 						"method": "DELETE",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/servicos/{{servicoId}}",
 							"host": [
@@ -2652,6 +2791,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -2857,6 +3003,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -2903,6 +3056,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -2947,7 +3107,15 @@
 					"name": "Listar equipamentos (paginado)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/equipamentos?page=0&size=20&sort=nome,asc",
 							"host": [
@@ -3039,7 +3207,15 @@
 					"name": "Listar equipamentos DE UM CLIENTE (por id do cliente)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/equipamentos?clienteId={{clienteEquipId}}&size=10",
 							"host": [
@@ -3089,7 +3265,15 @@
 					"name": "Buscar equipamento por id",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/equipamentos/{{equipamentoId}}",
 							"host": [
@@ -3155,6 +3339,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -3244,6 +3435,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -3294,6 +3492,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -3343,6 +3548,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -3417,7 +3629,15 @@
 					"name": "Excluir marca com equipamentos (409)",
 					"request": {
 						"method": "DELETE",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/marcas/{{marcaEquipId}}",
 							"host": [
@@ -3454,7 +3674,15 @@
 					"name": "Excluir equipamento (204)",
 					"request": {
 						"method": "DELETE",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/equipamentos/{{equipamentoId}}",
 							"host": [
@@ -3522,7 +3750,15 @@
 					"name": "Sem token (401)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/equipamentos",
 							"host": [
@@ -3567,7 +3803,15 @@
 					"name": "Preparar fixtures da pasta (setup)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/clientes?size=1",
 							"host": [
@@ -3652,6 +3896,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -3838,6 +4089,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -3887,6 +4145,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -3936,6 +4201,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -3982,6 +4254,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -4176,7 +4455,15 @@
 					"name": "Listar OSs (paginado)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico?size=5",
 							"host": [
@@ -4288,7 +4575,15 @@
 					"name": "Listar com filtro (status)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico?status=EM_ANDAMENTO",
 							"host": [
@@ -4327,7 +4622,15 @@
 					"name": "Listar com filtro (periodo de entrada)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico?dataInicio=2020-01-01&dataFim=2020-12-31",
 							"host": [
@@ -4370,7 +4673,15 @@
 					"name": "Buscar OS por id",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}",
 							"host": [
@@ -4465,6 +4776,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -4596,7 +4914,15 @@
 					"name": "Entregar sem concluir (422)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/entregar",
 							"host": [
@@ -4633,7 +4959,15 @@
 					"name": "Concluir OS (200)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/concluir",
 							"host": [
@@ -4734,6 +5068,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -4778,7 +5119,15 @@
 					"name": "Entregar OS (200)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/entregar",
 							"host": [
@@ -4875,7 +5224,15 @@
 					"name": "Alterar OS entregue (422)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{ordemServicoId}}/concluir",
 							"host": [
@@ -4910,7 +5267,15 @@
 					"name": "Cancelar OS (200)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{osDoClienteId}}/cancelar",
 							"host": [
@@ -5002,7 +5367,15 @@
 					"name": "Reabrir OS cancelada (422)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{osDoClienteId}}/concluir",
 							"host": [
@@ -5037,7 +5410,15 @@
 					"name": "Sem token (401)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico",
 							"host": [
@@ -5073,7 +5454,15 @@
 					"name": "OS inexistente (404)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/999999",
 							"host": [
@@ -5107,7 +5496,15 @@
 					"name": "Status invalido (400)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico?status=INVENTADO",
 							"host": [
@@ -5146,7 +5543,15 @@
 					"name": "Excluir OS (204)",
 					"request": {
 						"method": "DELETE",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{osDescartavelId}}",
 							"host": [
@@ -5284,6 +5689,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -5545,6 +5957,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -5593,7 +6012,15 @@
 					"name": "Listar itens da OS",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens",
 							"host": [
@@ -5665,6 +6092,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -5807,6 +6241,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -5856,6 +6297,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -5936,6 +6384,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -5985,6 +6440,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -6034,6 +6496,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -6085,6 +6554,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -6131,7 +6607,15 @@
 					"name": "Excluir OS com itens (422)",
 					"request": {
 						"method": "DELETE",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{osItensId}}",
 							"host": [
@@ -6169,6 +6653,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -6239,7 +6730,15 @@
 					"name": "Remover item (204)",
 					"request": {
 						"method": "DELETE",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{osItensId}}/itens/{{itemOsId}}",
 							"host": [
@@ -6303,7 +6802,15 @@
 					"name": "Limpar a OS de teste (204)",
 					"request": {
 						"method": "DELETE",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{osItensId}}",
 							"host": [
@@ -7390,6 +7897,140 @@
 						}
 					],
 					"id": "f2b3ba7e-2c45-48fb-a0fe-af0edd206b97"
+				},
+				{
+					"name": "Excluir usuario como ADMIN (403)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/usuarios/{{usuarioAdminId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"usuarios",
+								"{{usuarioAdminId}}"
+							]
+						},
+						"description": "Só o MASTER exclui usuários.\n\n---\n\n> `DELETE /usuarios/{id}` apaga o usuário **e toda a conta dele** (clientes, equipamentos, serviços, OS, itens, notificações, templates e tokens). Irreversível; para só tirar o acesso, use o PATCH de desativar.",
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{tokenAdmin}}",
+									"type": "string"
+								}
+							]
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('403 Forbidden', () => pm.response.to.have.status(403));"
+								]
+							}
+						}
+					],
+					"id": "d2a33a48-4edc-4bc1-b871-209086115595"
+				},
+				{
+					"name": "Excluir o MASTER (422)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/usuarios/1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"usuarios",
+								"1"
+							]
+						},
+						"description": "O MASTER é único: excluí-lo trancaria o cadastro de usuários.\n\n---\n\n> `DELETE /usuarios/{id}` apaga o usuário **e toda a conta dele** (clientes, equipamentos, serviços, OS, itens, notificações, templates e tokens). Irreversível; para só tirar o acesso, use o PATCH de desativar."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('422 Unprocessable Entity', () => pm.response.to.have.status(422));"
+								]
+							}
+						}
+					],
+					"id": "d2d50f07-bf3a-4e50-972e-d9e77bdaaaa6"
+				},
+				{
+					"name": "Excluir usuario e conta (204)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/usuarios/{{usuarioAdminId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"usuarios",
+								"{{usuarioAdminId}}"
+							]
+						},
+						"description": "Exclui o usuário criado em **Criar usuario ADMIN (201)**, junto com a conta dele.\n\n---\n\n> `DELETE /usuarios/{id}` apaga o usuário **e toda a conta dele** (clientes, equipamentos, serviços, OS, itens, notificações, templates e tokens). Irreversível; para só tirar o acesso, use o PATCH de desativar."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('204 No Content', () => pm.response.to.have.status(204));"
+								]
+							}
+						}
+					],
+					"id": "43210b37-3dbf-41cd-897a-4a0cd683c253"
+				},
+				{
+					"name": "Excluir usuario ja excluido (404)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/usuarios/{{usuarioAdminId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"usuarios",
+								"{{usuarioAdminId}}"
+							]
+						},
+						"description": "Depois da exclusão o usuário não existe mais.\n\n---\n\n> `DELETE /usuarios/{id}` apaga o usuário **e toda a conta dele** (clientes, equipamentos, serviços, OS, itens, notificações, templates e tokens). Irreversível; para só tirar o acesso, use o PATCH de desativar."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('404 Not Found', () => pm.response.to.have.status(404));"
+								]
+							}
+						}
+					],
+					"id": "9c80168a-9c29-4f1b-ba18-cddadd074cf2"
 				}
 			],
 			"id": "4b8cc7bc-77d5-4add-af3e-4f376c7138c9"
@@ -7402,7 +8043,15 @@
 					"name": "Painel (padrao: ultimos 30 dias)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/painel",
 							"host": [
@@ -7455,7 +8104,15 @@
 					"name": "Painel com periodo",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/painel?dataInicio=2026-01-01&dataFim=2026-06-30",
 							"host": [
@@ -7583,7 +8240,15 @@
 					"name": "Periodo sem movimento (zeros)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/painel?dataInicio=2020-01-01&dataFim=2020-12-31",
 							"host": [
@@ -7644,7 +8309,15 @@
 					"name": "Periodo invertido (422)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/painel?dataInicio=2026-12-31&dataFim=2026-01-01",
 							"host": [
@@ -7689,7 +8362,15 @@
 					"name": "Data mal formatada (400)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/painel?dataInicio=ontem",
 							"host": [
@@ -7730,7 +8411,15 @@
 					"name": "Sem token (401)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/painel",
 							"host": [
@@ -7776,6 +8465,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -7821,6 +8517,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -7866,6 +8569,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -7911,6 +8621,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -7956,6 +8673,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -7999,7 +8723,15 @@
 					"name": "Listar placeholders (200)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/notificacoes/placeholders",
 							"host": [
@@ -8067,7 +8799,15 @@
 					"name": "Listar templates (200)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/notificacoes/templates",
 							"host": [
@@ -8138,6 +8878,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -8190,6 +8937,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -8237,6 +8991,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -8283,6 +9044,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -8461,7 +9229,15 @@
 					"name": "Concluir a OS e disparar a notificacao (200)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{notifOsId}}/concluir",
 							"host": [
@@ -8494,7 +9270,15 @@
 					"name": "Listar notificacoes da OS (200)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/notificacoes?ordemServicoId={{notifOsId}}",
 							"host": [
@@ -8578,7 +9362,15 @@
 					"name": "Buscar notificacao por id (200)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/notificacoes/{{notificacaoId}}",
 							"host": [
@@ -8675,7 +9467,15 @@
 					"name": "Filtrar por statusOs e cliente (200)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/notificacoes?statusOs=CONCLUIDA&clienteId={{notifClienteId}}",
 							"host": [
@@ -8727,7 +9527,15 @@
 					"name": "Concluir de novo nao remanda (200)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{notifOsId}}/concluir",
 							"host": [
@@ -8760,7 +9568,15 @@
 					"name": "Continua com uma unica notificacao (200)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/notificacoes?ordemServicoId={{notifOsId}}",
 							"host": [
@@ -8801,6 +9617,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -8855,7 +9678,15 @@
 					"name": "Entregar com template desligado nao notifica (200)",
 					"request": {
 						"method": "PATCH",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{notifOsId}}/entregar",
 							"host": [
@@ -8899,7 +9730,15 @@
 					"name": "Notificacao inexistente (404)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/notificacoes/999999",
 							"host": [
@@ -8935,7 +9774,15 @@
 					"name": "Sem token (401)",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/notificacoes",
 							"host": [
@@ -8972,6 +9819,13 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
 							}
 						],
 						"url": {
@@ -9015,7 +9869,15 @@
 					"name": "OS com notificacao nao pode ser excluida (409 ou 422)",
 					"request": {
 						"method": "DELETE",
-						"header": [],
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
 						"url": {
 							"raw": "{{baseUrl}}/ordens-servico/{{notifOsId}}",
 							"host": [
@@ -11319,6 +12181,11 @@
 		},
 		{
 			"key": "mensagemTokenEmailInvalido",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "contaId",
 			"value": "",
 			"type": "string"
 		}

@@ -22,12 +22,14 @@ import dev.brunohm.bv2_projeto_software_uepg.exception.RegraDeNegocioException;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ClienteRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.EquipamentoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.MarcaRepository;
+import dev.brunohm.bv2_projeto_software_uepg.security.ContaAtual;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Equipamento pertence a um cliente da M2, que nao e usuario do sistema. Nao ha
- * checagem de posse: MASTER e ADMIN operam todos os equipamentos.
+ * Equipamento pertence a um cliente e herda dele a conta dona. Leitura e escrita
+ * restritas a conta da requisicao (ContaAtual): equipamento ou cliente de outra
+ * conta responde 404. Marca e catalogo global, sem dono.
  */
 @Service
 @RequiredArgsConstructor
@@ -37,6 +39,7 @@ public class EquipamentoService {
     private final EquipamentoRepository equipamentoRepository;
     private final ClienteRepository clienteRepository;
     private final MarcaRepository marcaRepository;
+    private final ContaAtual contaAtual;
 
     @Transactional
     public EquipamentoResponse criar(EquipamentoCriacaoRequest request) {
@@ -113,6 +116,7 @@ public class EquipamentoService {
 
     private Equipamento buscarEntidade(Long id) {
         return equipamentoRepository.findById(id)
+                .filter(equipamento -> equipamento.getCliente().getUsuarioId().equals(contaAtual.id()))
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Equipamento", id));
     }
 
@@ -123,12 +127,15 @@ public class EquipamentoService {
 
     private Cliente buscarCliente(Long id) {
         return clienteRepository.findById(id)
+                .filter(cliente -> cliente.getUsuarioId().equals(contaAtual.id()))
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Cliente", id));
     }
 
     private Specification<Equipamento> filtrar(Long clienteId, Long marcaId, String nome) {
+        Long usuarioId = contaAtual.id();
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
+            predicados.add(cb.equal(root.get("cliente").get("usuarioId"), usuarioId));
             if (clienteId != null) {
                 predicados.add(cb.equal(root.get("cliente").get("id"), clienteId));
             }

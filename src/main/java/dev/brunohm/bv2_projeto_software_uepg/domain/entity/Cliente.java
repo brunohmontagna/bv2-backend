@@ -17,9 +17,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Cliente da M2: quem leva o equipamento para consertar. E um cadastro, como
- * marca ou servico — <b>nao faz login e nao tem Usuario associado</b>. Quem opera
- * o sistema e a propria M2, com papel ADMIN.
+ * Cliente de uma conta: quem leva o equipamento para consertar. E um cadastro —
+ * <b>nao faz login</b>. Pertence ao usuario dono da conta (usuarioId), e tudo que
+ * pende dele (equipamentos, OS, notificacoes) herda esse dono.
  */
 @Entity
 @Table(name = "clientes")
@@ -33,6 +33,14 @@ public class Cliente {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /*
+     * Id simples, sem @ManyToOne: o dono so e usado para filtrar e comparar, e uma
+     * associacao LAZY nova obrigaria EntityGraph em toda consulta que a tocasse.
+     * Imutavel: mudar o dono moveria o historico inteiro do cliente de conta.
+     */
+    @Column(name = "id_usuario", nullable = false, updatable = false)
+    private Long usuarioId;
 
     @Column(name = "nome", nullable = false, length = 50)
     private String nome;

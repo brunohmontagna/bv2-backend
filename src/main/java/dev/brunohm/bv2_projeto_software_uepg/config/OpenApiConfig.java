@@ -20,9 +20,13 @@ public class OpenApiConfig {
                                 Sistema de ordens de serviço da M2 Equipamentos. \
                                 Projeto de Engenharia de Software - UEPG.
 
-                                **Papéis.** Quem faz login é a equipe desenvolvedora (MASTER) \
-                                e a M2 (ADMIN). Os dois operam todo o sistema por igual; a única \
-                                diferença é que só o MASTER enxerga o cadastro de usuários (/usuarios).
+                                **Contas.** Cada usuário tem a própria base: clientes, serviços, \
+                                equipamentos, OS, notificações, templates e painel. O ADMIN opera \
+                                só a conta dele. O MASTER (equipe desenvolvedora) escolhe a conta \
+                                pelo header `X-Conta-Id` - sem ele, opera a própria - e é o único \
+                                que enxerga o cadastro de usuários (/usuarios). Registro de outra \
+                                conta responde 404; ADMIN enviando `X-Conta-Id` de outra conta, 403. \
+                                Marcas são um catálogo global.
 
                                 **Cliente não é usuário.** O que /clientes lista são os clientes \
                                 da M2 - quem leva o equipamento para consertar. Eles não fazem login.

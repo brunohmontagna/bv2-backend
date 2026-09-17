@@ -50,4 +50,9 @@ public interface TokenVerificacaoRepository extends JpaRepository<TokenVerificac
     int invalidarPendentesDoUsuario(@Param("usuarioId") Long usuarioId,
             @Param("finalidade") FinalidadeToken finalidade,
             @Param("agora") LocalDateTime agora);
+
+    /* Exclusao de conta (UsuarioService.excluir): o historico de links pedidos vai junto com o usuario. */
+    @Modifying
+    @Query("delete from TokenVerificacao t where t.usuario.id = :usuarioId")
+    int excluirDoUsuario(@Param("usuarioId") Long usuarioId);
 }
