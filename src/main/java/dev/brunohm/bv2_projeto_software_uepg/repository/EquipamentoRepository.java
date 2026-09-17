@@ -8,6 +8,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import dev.brunohm.bv2_projeto_software_uepg.domain.entity.Equipamento;
@@ -31,7 +34,18 @@ public interface EquipamentoRepository
 
     boolean existsByClienteIdAndMarcaIdAndNomeIgnoreCase(Long clienteId, Long marcaId, String nome);
 
+    /* Resumo do painel. Equipamento nao tem dono proprio: herda o do cliente. */
+    long countByClienteUsuarioId(Long usuarioId);
+
     /* Usado na atualizacao, para o equipamento nao colidir com ele mesmo. */
     boolean existsByClienteIdAndMarcaIdAndNomeIgnoreCaseAndIdNot(
             Long clienteId, Long marcaId, String nome, Long id);
+
+    /* Exclusao de conta (UsuarioService.excluir). */
+    @Modifying
+    @Query("""
+            delete from Equipamento e
+             where e.cliente.id in (select c.id from Cliente c where c.usuarioId = :usuarioId)
+            """)
+    int excluirDaConta(@Param("usuarioId") Long usuarioId);
 }

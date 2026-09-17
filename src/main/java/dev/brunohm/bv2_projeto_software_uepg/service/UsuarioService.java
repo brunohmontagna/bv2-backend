@@ -22,6 +22,14 @@ import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioResponse;
 import dev.brunohm.bv2_projeto_software_uepg.exception.RecursoDuplicadoException;
 import dev.brunohm.bv2_projeto_software_uepg.exception.RecursoNaoEncontradoException;
 import dev.brunohm.bv2_projeto_software_uepg.exception.RegraDeNegocioException;
+import dev.brunohm.bv2_projeto_software_uepg.repository.ClienteRepository;
+import dev.brunohm.bv2_projeto_software_uepg.repository.EquipamentoRepository;
+import dev.brunohm.bv2_projeto_software_uepg.repository.ItemOsRepository;
+import dev.brunohm.bv2_projeto_software_uepg.repository.NotificacaoRepository;
+import dev.brunohm.bv2_projeto_software_uepg.repository.OrdemServicoRepository;
+import dev.brunohm.bv2_projeto_software_uepg.repository.ServicoRepository;
+import dev.brunohm.bv2_projeto_software_uepg.repository.TemplateNotificacaoRepository;
+import dev.brunohm.bv2_projeto_software_uepg.repository.TokenVerificacaoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.UsuarioRepository;
 import dev.brunohm.bv2_projeto_software_uepg.security.AutenticacaoAtual;
 import jakarta.persistence.criteria.Predicate;
@@ -29,7 +37,8 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Cadastro dos usuarios do sistema. E o unico recurso com restricao de papel: so
- * o MASTER enxerga a lista. O ADMIN chega aqui apenas pelo "eu".
+ * o MASTER enxerga a lista. O ADMIN chega aqui apenas pelo "eu". Cada usuario e
+ * dono de uma conta, entao criar e excluir usuario tambem cria e apaga a conta.
  */
 @Service
 @RequiredArgsConstructor
@@ -37,10 +46,22 @@ import lombok.RequiredArgsConstructor;
 public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
+    private final TemplateNotificacaoRepository templateNotificacaoRepository;
+    private final NotificacaoRepository notificacaoRepository;
+    private final ItemOsRepository itemOsRepository;
+    private final OrdemServicoRepository ordemServicoRepository;
+    private final EquipamentoRepository equipamentoRepository;
+    private final ClienteRepository clienteRepository;
+    private final ServicoRepository servicoRepository;
+    private final TokenVerificacaoRepository tokenVerificacaoRepository;
     private final PasswordEncoder passwordEncoder;
     private final AutenticacaoAtual autenticacaoAtual;
 
-    /** Todo usuario criado pela API nasce ADMIN: MASTER nao e atribuivel. */
+    /**
+     * Todo usuario criado pela API nasce ADMIN: MASTER nao e atribuivel. A conta ja
+     * nasce com os templates de notificacao (desligados), porque o modal do front e
+     * o disparo automatico contam com as tres linhas existindo.
+     */
     @Transactional
     public UsuarioResponse criar(UsuarioCriacaoRequest request) {
         if (usuarioRepository.existsByEmail(request.email())) {
@@ -55,6 +76,8 @@ public class UsuarioService {
                 .role(RoleUsuario.ADMIN)
                 .ativo(true)
                 .build());
+
+        templateNotificacaoRepository.saveAll(TemplatesNotificacaoPadrao.para(usuario.getId()));
 
         return UsuarioResponse.fromEntity(usuario);
     }
@@ -98,6 +121,44 @@ public class UsuarioService {
 
         usuario.setAtivo(ativo);
         return UsuarioResponse.fromEntity(usuarioRepository.save(usuario));
+    }
+
+    /**
+     * Exclusao definitiva do usuario <b>e de toda a conta dele</b>: clientes,
+     * equipamentos, servicos, OS, itens, notificacoes, templates e tokens. Nao ha
+     * volta; para tirar o acesso preservando o historico, o caminho e desativar.
+     *
+     * <p>
+     * As FKs sao todas ON DELETE RESTRICT de proposito — nada some por engano em
+     * outro lugar do sistema. Por isso a limpeza e explicita e na ordem das
+     * dependencias (folhas primeiro), em deletes em massa: carregar a conta inteira
+     * em memoria para apagar linha a linha nao acrescentaria nada. Tudo na mesma
+     * transacao: se qualquer passo falhar, a conta fica inteira.
+     *
+     * <p>
+     * Os tokens JWT ja emitidos para o usuario morrem sozinhos: o JwtAuthFilter nao
+     * encontra mais o e-mail e nao autentica.
+     */
+    @Transactional
+    public void excluir(Long id) {
+        Usuario usuario = buscarEntidade(id);
+
+        // O MASTER e unico: exclui-lo trancaria o cadastro de usuarios para sempre.
+        if (RoleUsuario.MASTER.equals(usuario.getRole())) {
+            throw new RegraDeNegocioException("O usuário MASTER não pode ser excluído.");
+        }
+
+        notificacaoRepository.excluirDaConta(id);
+        itemOsRepository.excluirDaConta(id);
+        ordemServicoRepository.excluirDaConta(id);
+        equipamentoRepository.excluirDaConta(id);
+        clienteRepository.excluirDaConta(id);
+        servicoRepository.excluirDaConta(id);
+        templateNotificacaoRepository.excluirDaConta(id);
+        tokenVerificacaoRepository.excluirDoUsuario(id);
+
+        usuarioRepository.delete(usuario);
+        usuarioRepository.flush();
     }
 
     /*

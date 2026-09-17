@@ -30,6 +30,10 @@ public class Servico {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /* Dono do catalogo. Id simples e imutavel, pelo mesmo motivo de Cliente.usuarioId. */
+    @Column(name = "id_usuario", nullable = false, updatable = false)
+    private Long usuarioId;
+
     @Column(name = "nome", nullable = false, length = 50)
     private String nome;
 

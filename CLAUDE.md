@@ -31,13 +31,14 @@ estes termos:
 
 | Termo | Significa |
 |---|---|
-| **Usuário** | Quem faz **login** no sistema. Só existem dois papéis: `MASTER` e `ADMIN`. |
-| **MASTER** | A **equipe desenvolvedora**. Faz tudo que o ADMIN faz e, além disso, enxerga o cadastro de usuários do sistema. |
-| **ADMIN** | A **M2 Equipamentos**. Opera o sistema inteiro. Não enxerga o cadastro de usuários. |
-| **Cliente** | O **cliente da M2** — a pessoa ou empresa que leva a furadeira para consertar. **Não faz login. Não é usuário do sistema.** É apenas um registro cadastral, como marca ou serviço. |
+| **Usuário** | Quem faz **login** no sistema. Só existem dois papéis: `MASTER` e `ADMIN`. Cada usuário é dono de uma **conta**. |
+| **Conta** | A base de dados própria de um usuário: clientes, serviços, templates de notificação e tudo que pende deles. Uma conta não enxerga a outra. |
+| **MASTER** | A **equipe desenvolvedora**. Tem a própria conta, **escolhe em qual conta opera** (header `X-Conta-Id`) e enxerga o cadastro de usuários do sistema. |
+| **ADMIN** | Uma empresa usuária — hoje, a **M2 Equipamentos**. Opera **só a própria conta**. Não enxerga o cadastro de usuários. |
+| **Cliente** | O **cliente de uma conta** — a pessoa ou empresa que leva a furadeira para consertar. **Não faz login. Não é usuário do sistema.** É apenas um registro cadastral da conta. |
 
-Ou seja: **a M2 é o único usuário do sistema**. O que o `/clientes` lista é a carteira de
-clientes *dela*.
+Ou seja: o que o `/clientes` lista é a carteira de clientes **da conta em que se está
+operando** — para a M2, a carteira *dela*.
 
 ## Stack
 
@@ -153,32 +154,36 @@ integration/  saída para fora da aplicação (webhook do n8n, envio de e-mail)
 config/       OpenApiConfig
 ```
 
-Migrations em `src/main/resources/db/migration` (`V1` … `V21`).
+Migrations em `src/main/resources/db/migration` (`V1` … `V22`).
 
 ## Modelo de dados
 
 ```
-usuarios                        (MASTER / ADMIN — quem loga; ilha isolada)
-
-clientes ──┬── (N) equipamentos ── (N:1) marcas
-           ├── (N) ordens_servico ── (N) itens_os ──┬── equipamento
-           └── (N) notificacoes                     └── servicos
-
-templates_notificacao           (configuração da notificação; PK = status_os)
+usuarios (MASTER / ADMIN — quem loga; cada um é dono de uma conta)
+   │
+   ├──< clientes ──┬── (N) equipamentos ── (N:1) marcas   (marcas: catálogo global)
+   │               ├── (N) ordens_servico ── (N) itens_os ──┬── equipamento
+   │               └── (N) notificacoes                     └── servicos
+   ├──< servicos
+   └──< templates_notificacao   (configuração da notificação; único por conta + status_os)
 ```
 
-`usuarios` **não se relaciona com nada**. Autenticação e domínio são grafos separados.
+**O dono (`id_usuario`) mora só nas tabelas raiz**: `clientes`, `servicos` e
+`templates_notificacao` (V22). `equipamentos`, `ordens_servico`, `itens_os` e
+`notificacoes` **herdam o dono pelo cliente** — gravar `id_usuario` nelas abriria espaço
+para um equipamento pertencer a uma conta e o cliente dele a outra. Nas entidades o dono é
+um `Long usuarioId` imutável, não um `@ManyToOne`: só serve para filtrar e comparar.
 
 - **usuarios** — credenciais, `role` (`MASTER` | `ADMIN`) e flag `ativo`. Senha em BCrypt.
-- **clientes** — cadastro dos clientes da M2. Nome, telefone, flag `ativo`. **Sem login.**
-- **marcas** — catálogo, nome único.
-- **servicos** — catálogo com `valor`, `contador_uso` e flag `ativo`.
+- **clientes** — cadastro dos clientes de uma conta. Nome, telefone, flag `ativo`. **Sem login.**
+- **marcas** — catálogo **global** (compartilhado entre contas), nome único.
+- **servicos** — catálogo da conta com `valor`, `contador_uso` e flag `ativo`.
 - **equipamentos** — pertencem a um cliente e a uma marca.
 - **ordens_servico** — pertencem a um cliente; `status`, três datas, `valor_total`.
 - **itens_os** — composição da OS: `(ordem_servico, equipamento, servico)`, chave única.
 - **notificacoes** — log de envios ao cliente da M2: o texto que saiu, `status_os` que
   disparou, `status` do envio e `tentativas`. Escrita só pelo sistema.
-- **templates_notificacao** — configuração: um texto e uma flag `ativo` por status de OS.
+- **templates_notificacao** — configuração: um texto e uma flag `ativo` por (conta, status de OS).
 
 Todas as FKs são `ON DELETE RESTRICT`: nada com histórico vinculado é apagado por engano.
 Os enums são tipos nativos do Postgres (`status_os`, `role_usuario`,
@@ -186,43 +191,72 @@ Os enums são tipos nativos do Postgres (`status_os`, `role_usuario`,
 `tipo_notificacao` existiu entre a `V8` e a `V18`: as notificações passaram a ser chaveadas
 pelo próprio `status_os`, e um segundo enum paralelo só criaria duas fontes de verdade.
 
-O vínculo `clientes.id_usuario` foi removido na `V12`; a flag `ativo` de `usuarios` veio na
-`V13`.
+O vínculo `clientes.id_usuario` da V4 era 1:1 (cliente como usuário) e foi removido na
+`V12`; a `V22` recriou a coluna com outro sentido — o **dono da conta**, N:1. A flag `ativo`
+de `usuarios` veio na `V13`.
 
 ## Regras de negócio
 
 ### Autorização
 
-Dois papéis, e a diferença entre eles é **uma só**:
+Cada usuário tem a **própria conta** (V22), e os dois papéis diferem em duas coisas:
 
 | | MASTER | ADMIN |
 |---|---|---|
-| Quem é | equipe desenvolvedora | M2 Equipamentos |
-| Clientes, equipamentos, marcas, serviços, OSs, itens | acesso total | acesso total |
+| Quem é | equipe desenvolvedora | empresa usuária (hoje, a M2) |
+| Clientes, equipamentos, serviços, OSs, itens, notificações, painel | **de qualquer conta**, escolhida pelo header `X-Conta-Id` | **só da própria conta** |
+| Marcas | catálogo global | catálogo global |
 | Cadastro de **usuários do sistema** (`/usuarios`) | **enxerga e gerencia** | **não enxerga** |
+
+**A conta da requisição vem de `security/ContaAtual`**, e só dele:
+
+- **ADMIN** opera sempre a própria conta. Se mandar `X-Conta-Id` de **outra** conta, **403**
+  explícito — o front nunca manda o header para ele, então é tentativa de acesso, e ignorar
+  em silêncio esconderia isso. O próprio id no header é aceito.
+- **MASTER sem header** opera a própria conta; com header, a conta pedida. Id inexistente é
+  **404** (`Usuário`), valor não numérico é **422**. Conta **inativa** é aceita: o MASTER
+  pode consultar o histórico de um usuário desativado (o front só lista as ativas).
+- Header, e não query param, para nenhuma assinatura de endpoint mudar. O resultado fica
+  guardado como atributo da requisição: a checagem roda uma vez, por mais que os services
+  chamem `id()`.
 
 Consequências, todas importantes:
 
-- **Não existe checagem de posse.** Qualquer usuário autenticado enxerga e altera todos os
-  clientes da M2 e tudo que pende deles. Não há dado "de outro cliente" a proteger, porque
-  cliente não é usuário. Nenhum service tem `garantirAcesso`.
-- **Não existe filtro implícito por cliente nas listagens.** O `?clienteId=` é um filtro de
-  conveniência e vale igual para os dois papéis, sem sobrescrita.
+- **Registro de outra conta responde 404, não 403.** Pela conta em que se está operando ele
+  não existe. Todo `buscarEntidade` filtra pelo dono (`usuarioId` ou `cliente.usuarioId`), e
+  toda `Specification` de listagem ganha o predicado fixo de conta.
+- **As buscas de apoio também são por conta**: cliente da OS e do equipamento, serviço e
+  equipamento do item. Não há como montar uma OS misturando cadastros de contas diferentes
+  — a referência de outra conta simplesmente não é encontrada (404).
+- **O `?clienteId=` continua sendo filtro de conveniência**, aplicado *dentro* da conta.
 - **`clienteId` é obrigatório** ao criar equipamento e ordem de serviço. Nenhum usuário é
   um cliente, então não há de quem herdá-lo.
-- O único `403` da API é um ADMIN tentando acessar o cadastro de usuários. As únicas seis
-  `@PreAuthorize` do projeto estão no `UsuarioController`, todas `hasRole('MASTER')`.
+- **O disparo de notificação não usa `ContaAtual`.** Ele roda em `AFTER_COMMIT`, fora do
+  fluxo da requisição, e busca o template pela conta **dona do cliente da OS**.
+- **Excluir marca** pode dar 409 por equipamento de outra conta: o catálogo é global.
+- Os `403` da API são: ADMIN no cadastro de usuários (seis `@PreAuthorize("hasRole('MASTER')")`
+  no `UsuarioController`) e ADMIN com `X-Conta-Id` de outra conta.
 
 ### Usuários do sistema
 
 - **Só o MASTER cria usuários.** Não há auto-cadastro nem ADMIN criando ADMIN. Todo usuário
   criado pela API nasce `ADMIN`: o papel não é atribuível por requisição.
+- **Usuário novo nasce com conta vazia e com os 3 templates de notificação desligados**
+  (`TemplatesNotificacaoPadrao`, mesmo texto da V18). O modal do front e o disparo contam
+  com as três linhas existindo.
 - **Existe um único MASTER**, o semeado na migration, e ele **não pode ser desativado** —
   seria trancar o cadastro de usuários para sempre (422).
 - **O ADMIN edita o próprio cadastro** por `GET`/`PUT /usuarios/eu`, onde o id vem do token
   e nunca do path. É o único ponto de `/usuarios` aberto a ele.
-- **Usuário não se apaga: desativa-se** (`PATCH /usuarios/{id}/desativar`), como cliente e
-  serviço. Não há `DELETE`.
+- **Desativar é o caminho normal** (`PATCH /usuarios/{id}/desativar`), como cliente e
+  serviço: tira o acesso e preserva a conta e o histórico.
+- **Excluir (`DELETE /usuarios/{id}`) apaga o usuário e a conta inteira**: notificações,
+  itens, OS, equipamentos, clientes, serviços, templates e tokens, nessa ordem (folhas
+  primeiro), em deletes em massa na mesma transação. As FKs continuam `ON DELETE RESTRICT`
+  de propósito — a limpeza é explícita no `UsuarioService.excluir`, e nada some por cascata
+  em outro ponto do sistema. O MASTER não pode ser excluído (422). O front exige digitar
+  `EXCLUIR` para liberar o botão. Os JWT do excluído morrem sozinhos: o `JwtAuthFilter` não
+  acha mais o e-mail.
 - **Desativar vale na hora.** `isEnabled()` barra o login, e o `JwtAuthFilter` recusa o
   token já emitido a cada requisição — sem isso o desativado continuaria entrando pelos
   120 minutos de validade do JWT.
@@ -327,8 +361,9 @@ POST /auth/email/confirmar  (público; só o token)                             
 
 **A confirmação vai para o endereço novo, não para o atual.** Verificar o atual provaria
 identidade, mas não que o novo existe — e como o e-mail é o login, um typo trancaria a conta
-de vez: não há `DELETE` em `/usuarios`, e se fosse o MASTER, o cadastro de usuários ficaria
-inacessível (o seed da V9 só roda em banco novo). Verificando no destino, endereço errado é
+de vez: o único jeito de sair seria excluir o usuário junto com a conta inteira, e se fosse
+o MASTER — que não se exclui —, o cadastro de usuários ficaria inacessível (o seed da V9 só
+roda em banco novo). Verificando no destino, endereço errado é
 só um link que nunca chega, e a conta continua como estava.
 
 **Por isso a senha atual é exigida.** Com a confirmação no destino, quem clica é quem
@@ -468,8 +503,10 @@ Como se define:
 ### Painel
 
 `GET /painel` é a única leitura agregada da API: consolida resumo, faturamento, série
-mensal e rankings numa resposta só, para o dashboard. Qualquer autenticado acessa — MASTER
-e ADMIN por igual, sem `@PreAuthorize`.
+mensal e rankings numa resposta só, para o dashboard. Qualquer autenticado acessa, sem
+`@PreAuthorize`, e **tudo é recortado pela conta** (`ContaAtual`): o `usuarioId` é resolvido
+uma vez e passado às doze consultas, que filtram por `o.cliente.usuarioId`. O MASTER vê o
+painel da conta escolhida no `X-Conta-Id`, nunca a soma de todas.
 
 - **Período** por `?dataInicio=&dataFim=`, ambos opcionais e **inclusivos nas duas pontas**.
   Omitidos, valem os últimos 30 dias. `dataInicio` sozinha ancora no `dataFim` informado, e
@@ -515,9 +552,14 @@ status, então ele mesmo chama o n8n; não há polling nem rota de entrada:
 transicionar() ──commit──> evento AFTER_COMMIT ──> POST no webhook do n8n ──> WhatsApp
 ```
 
-**Duas tabelas, dois papéis.** `templates_notificacao` é configuração (o que a M2 liga e
+**Duas tabelas, dois papéis.** `templates_notificacao` é configuração (o que cada conta liga e
 desliga); `notificacoes` é log de execução (o que o sistema escreveu). A API **edita a
 primeira e só lê a segunda** — não há `POST` nem `DELETE` de notificação.
+
+**As duas são por conta.** Cada conta tem os próprios três templates (V22: uma linha por
+`(id_usuario, status)`, id surrogate) e só vê o log dos próprios clientes. O disparo
+automático usa os templates da conta **dona do cliente da OS**, não a de quem trocou o
+status.
 
 **O texto do template não é editável pela M2.** Pela API oficial do WhatsApp, mensagem
 iniciada pela empresa sai de um modelo pré-aprovado, então quem define o texto é o modelo, não
@@ -525,10 +567,11 @@ a tela. O `PUT` aceita `conteudo` e o backend valida os placeholders, mas o fron
 volta o conteudo que já está salvo e só mexe na flag `ativo`; na tela o texto aparece como
 prévia, com os placeholders trocados pelos exemplos do `GET /notificacoes/placeholders`.
 
-- **A chave é o próprio `StatusOs`**, não um enum de "tipo de notificação". O que dispara o
+- **A chave natural é conta + `StatusOs`**, não um enum de "tipo de notificação". O que dispara o
   envio é a transição da OS; um segundo enum paralelo criaria duas fontes de verdade. Foi o
   que motivou dropar o `tipo_notificacao` na `V18`.
-- **Notificam `CONCLUIDA`, `ENTREGUE` e `CANCELADA`**, as três linhas semeadas na `V18`.
+- **Notificam `CONCLUIDA`, `ENTREGUE` e `CANCELADA`**, as três linhas semeadas na `V18`,
+  copiadas para cada conta na `V22` e criadas junto com todo usuário novo.
   `EM_ANDAMENTO` não notifica por não ter linha — não por um `if` no código. Habilitar
   abertura de OS um dia é um `INSERT`, não uma migration de enum.
 - **Nascem todas desligadas** (`ativo = false`): ninguém manda WhatsApp para cliente real

@@ -16,12 +16,14 @@ import dev.brunohm.bv2_projeto_software_uepg.dto.cliente.ClienteCriacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.cliente.ClienteResponse;
 import dev.brunohm.bv2_projeto_software_uepg.exception.RecursoNaoEncontradoException;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ClienteRepository;
+import dev.brunohm.bv2_projeto_software_uepg.security.ContaAtual;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 
 /**
- * Cliente aqui e o cliente da M2, um cadastro sem login. Nao ha checagem de
- * posse: qualquer usuario autenticado opera toda a carteira.
+ * Cliente e um cadastro sem login que pertence a uma conta. Toda leitura e escrita
+ * fica restrita a conta da requisicao (ContaAtual): cliente de outra conta
+ * responde 404, como se nao existisse.
  */
 @Service
 @RequiredArgsConstructor
@@ -29,10 +31,12 @@ import lombok.RequiredArgsConstructor;
 public class ClienteService {
 
     private final ClienteRepository clienteRepository;
+    private final ContaAtual contaAtual;
 
     @Transactional
     public ClienteResponse criar(ClienteCriacaoRequest request) {
         Cliente cliente = clienteRepository.save(Cliente.builder()
+                .usuarioId(contaAtual.id())
                 .nome(request.nome())
                 .telefone(request.telefone())
                 .ativo(true)
@@ -81,12 +85,15 @@ public class ClienteService {
 
     private Cliente buscarEntidade(Long id) {
         return clienteRepository.findById(id)
+                .filter(cliente -> cliente.getUsuarioId().equals(contaAtual.id()))
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Cliente", id));
     }
 
     private Specification<Cliente> filtrar(String nome, Boolean ativo) {
+        Long usuarioId = contaAtual.id();
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
+            predicados.add(cb.equal(root.get("usuarioId"), usuarioId));
             if (nome != null && !nome.isBlank()) {
                 predicados.add(cb.like(cb.lower(root.get("nome")), "%" + nome.toLowerCase() + "%"));
             }

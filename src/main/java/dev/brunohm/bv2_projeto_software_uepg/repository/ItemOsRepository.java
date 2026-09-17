@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -60,12 +61,14 @@ public interface ItemOsRepository extends JpaRepository<ItemOs, Long> {
             from ItemOs i
             join i.servico s
             join i.ordemServico o
-            where o.dataEntrada between :dataInicio and :dataFim
+            where o.cliente.usuarioId = :usuarioId
+              and o.dataEntrada between :dataInicio and :dataFim
               and o.status <> :statusCancelada
             group by s.id, s.nome
             order by count(i) desc, s.nome asc
             """)
-    List<RankingContagemResponse> rankingServicosMaisExecutados(@Param("dataInicio") LocalDate dataInicio,
+    List<RankingContagemResponse> rankingServicosMaisExecutados(@Param("usuarioId") Long usuarioId,
+            @Param("dataInicio") LocalDate dataInicio,
             @Param("dataFim") LocalDate dataFim,
             @Param("statusCancelada") StatusOs statusCancelada,
             Pageable limite);
@@ -82,13 +85,28 @@ public interface ItemOsRepository extends JpaRepository<ItemOs, Long> {
             join i.equipamento e
             join e.marca m
             join i.ordemServico o
-            where o.dataEntrada between :dataInicio and :dataFim
+            where o.cliente.usuarioId = :usuarioId
+              and o.dataEntrada between :dataInicio and :dataFim
               and o.status <> :statusCancelada
             group by m.id, m.nome
             order by count(distinct o.id) desc, m.nome asc
             """)
-    List<RankingContagemResponse> rankingMarcasMaisAtendidas(@Param("dataInicio") LocalDate dataInicio,
+    List<RankingContagemResponse> rankingMarcasMaisAtendidas(@Param("usuarioId") Long usuarioId,
+            @Param("dataInicio") LocalDate dataInicio,
             @Param("dataFim") LocalDate dataFim,
             @Param("statusCancelada") StatusOs statusCancelada,
             Pageable limite);
+
+    /*
+     * Exclusao de conta (UsuarioService.excluir). Pega o item pelos tres lados — OS, equipamento e servico da conta —
+     * para nenhuma FK RESTRICT sobrar, mesmo em dado anterior ao escopo por conta.
+     */
+    @Modifying
+    @Query("""
+            delete from ItemOs i
+             where i.ordemServico.id in (select o.id from OrdemServico o where o.cliente.usuarioId = :usuarioId)
+                or i.equipamento.id in (select e.id from Equipamento e where e.cliente.usuarioId = :usuarioId)
+                or i.servico.id in (select s.id from Servico s where s.usuarioId = :usuarioId)
+            """)
+    int excluirDaConta(@Param("usuarioId") Long usuarioId);
 }

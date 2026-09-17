@@ -7,6 +7,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -192,7 +193,7 @@ public class UsuarioController {
     @PatchMapping("/{id}/desativar")
     @PreAuthorize("hasRole('MASTER')")
     @Operation(summary = "Revoga o acesso do usuário na hora, inclusive tokens já emitidos (idempotente). "
-            + "Não há exclusão definitiva: o registro de quem operou o sistema é preservado")
+            + "Preserva a conta e o histórico; para apagar tudo, use o DELETE")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Usuário desativado"),
             @ApiResponse(responseCode = "403", description = "Apenas o MASTER gerencia usuários"),
@@ -201,5 +202,20 @@ public class UsuarioController {
     })
     public ResponseEntity<UsuarioResponse> desativar(@PathVariable Long id) {
         return ResponseEntity.ok(usuarioService.alterarSituacao(id, false));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('MASTER')")
+    @Operation(summary = "Exclui definitivamente o usuário e TODA a conta dele: clientes, equipamentos, "
+            + "serviços, OS, itens, notificações e templates. Irreversível; para só tirar o acesso, desative")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Usuário e conta excluídos"),
+            @ApiResponse(responseCode = "403", description = "Apenas o MASTER gerencia usuários"),
+            @ApiResponse(responseCode = "404", description = "Usuário não encontrado"),
+            @ApiResponse(responseCode = "422", description = "O MASTER é único e não pode ser excluído")
+    })
+    public ResponseEntity<Void> excluir(@PathVariable Long id) {
+        usuarioService.excluir(id);
+        return ResponseEntity.noContent().build();
     }
 }

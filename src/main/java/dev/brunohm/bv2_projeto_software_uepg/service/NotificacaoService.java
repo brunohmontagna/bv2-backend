@@ -33,6 +33,7 @@ import dev.brunohm.bv2_projeto_software_uepg.integration.NotificacaoPayload;
 import dev.brunohm.bv2_projeto_software_uepg.repository.NotificacaoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.OrdemServicoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.TemplateNotificacaoRepository;
+import dev.brunohm.bv2_projeto_software_uepg.security.ContaAtual;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 
@@ -41,6 +42,10 @@ import lombok.RequiredArgsConstructor;
  * configuracao editavel pela M2, e a Notificacao e o log do que foi enviado.
  * A API le o log e edita a configuracao; quem escreve o log e o listener da
  * transicao de status.
+ *
+ * <p>
+ * Os dois lados sao por conta: a API opera a conta da requisicao (ContaAtual), e o
+ * disparo automatico usa a conta dona do cliente da OS.
  */
 @Service
 @RequiredArgsConstructor
@@ -57,6 +62,7 @@ public class NotificacaoService {
     private final OrdemServicoRepository ordemServicoRepository;
     private final RenderizadorMensagem renderizadorMensagem;
     private final N8nWebhookClient n8nWebhookClient;
+    private final ContaAtual contaAtual;
 
     // ------------------------------------------------------------------
     // Log de envios (somente leitura pela API)
@@ -77,13 +83,16 @@ public class NotificacaoService {
 
     private Notificacao buscarEntidade(Long id) {
         return notificacaoRepository.findById(id)
+                .filter(notificacao -> notificacao.getCliente().getUsuarioId().equals(contaAtual.id()))
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Notificação", id));
     }
 
     private Specification<Notificacao> filtrar(Long ordemServicoId, Long clienteId,
             StatusOs statusOs, StatusNotificacao status) {
+        Long usuarioId = contaAtual.id();
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
+            predicados.add(cb.equal(root.get("cliente").get("usuarioId"), usuarioId));
 
             if (ordemServicoId != null) {
                 predicados.add(cb.equal(root.get("ordemServico").get("id"), ordemServicoId));
@@ -108,10 +117,10 @@ public class NotificacaoService {
 
     /**
      * Ordenado pelo ordinal do StatusOs para o modal do front nao trocar a ordem
-     * das abas a cada requisicao — findAll numa PK de enum nao garante ordem.
+     * das abas a cada requisicao — a consulta sozinha nao garante ordem.
      */
     public List<TemplateNotificacaoResponse> listarTemplates() {
-        return templateNotificacaoRepository.findAll().stream()
+        return templateNotificacaoRepository.findByUsuarioId(contaAtual.id()).stream()
                 .sorted(Comparator.comparing(TemplateNotificacao::getStatus))
                 .map(TemplateNotificacaoResponse::fromEntity)
                 .toList();
@@ -124,13 +133,15 @@ public class NotificacaoService {
     }
 
     /**
-     * Nao existe criacao: o conjunto de status notificaveis e semeado na migration
-     * V18. Pedir um status fora dele (EM_ANDAMENTO, hoje) e 404 — pela rota
-     * informada o recurso nao existe mesmo.
+     * Nao existe criacao: o conjunto de status notificaveis de cada conta nasce na
+     * migration (V18/V22) ou junto com o usuario (TemplatesNotificacaoPadrao). Pedir
+     * um status fora dele (EM_ANDAMENTO, hoje) e 404 — pela rota informada o
+     * recurso nao existe mesmo.
      */
     @Transactional
     public TemplateNotificacaoResponse atualizarTemplate(StatusOs status, TemplateNotificacaoRequest request) {
-        TemplateNotificacao template = templateNotificacaoRepository.findById(status)
+        TemplateNotificacao template = templateNotificacaoRepository
+                .findByUsuarioIdAndStatus(contaAtual.id(), status)
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "Não há notificação configurável para o status " + status + "."));
 
@@ -173,7 +184,21 @@ public class NotificacaoService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processarTransicao(OrdemServicoStatusAlteradoEvent evento) {
-        TemplateNotificacao template = templateNotificacaoRepository.findById(evento.statusNovo())
+        OrdemServico ordemServico = ordemServicoRepository.findById(evento.ordemServicoId())
+                .orElse(null);
+        if (ordemServico == null) {
+            log.warn("OS {} não encontrada ao notificar a transição para {}.",
+                    evento.ordemServicoId(), evento.statusNovo());
+            return;
+        }
+
+        /*
+         * O template vem da conta dona do cliente da OS, e nao da ContaAtual: isto
+         * roda depois do commit e fora do fluxo da requisicao, e o que decide qual
+         * configuracao vale e de quem e a OS, nao quem clicou.
+         */
+        TemplateNotificacao template = templateNotificacaoRepository
+                .findByUsuarioIdAndStatus(ordemServico.getCliente().getUsuarioId(), evento.statusNovo())
                 .orElse(null);
 
         /*
@@ -182,14 +207,6 @@ public class NotificacaoService {
          * E tambem o que cobre EM_ANDAMENTO sem precisar de if especial.
          */
         if (template == null || Boolean.FALSE.equals(template.getAtivo())) {
-            return;
-        }
-
-        OrdemServico ordemServico = ordemServicoRepository.findById(evento.ordemServicoId())
-                .orElse(null);
-        if (ordemServico == null) {
-            log.warn("OS {} não encontrada ao notificar a transição para {}.",
-                    evento.ordemServicoId(), evento.statusNovo());
             return;
         }
 

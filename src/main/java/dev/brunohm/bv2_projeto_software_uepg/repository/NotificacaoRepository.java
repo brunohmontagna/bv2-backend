@@ -8,6 +8,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import dev.brunohm.bv2_projeto_software_uepg.domain.entity.Notificacao;
@@ -31,4 +34,12 @@ public interface NotificacaoRepository
     @Override
     @EntityGraph(attributePaths = { "cliente" })
     Page<Notificacao> findAll(Specification<Notificacao> spec, Pageable pageable);
+
+    /* Exclusao de conta (UsuarioService.excluir): notificacao pende do cliente, entao sai antes dele e da OS. */
+    @Modifying
+    @Query("""
+            delete from Notificacao n
+             where n.cliente.id in (select c.id from Cliente c where c.usuarioId = :usuarioId)
+            """)
+    int excluirDaConta(@Param("usuarioId") Long usuarioId);
 }

@@ -30,11 +30,13 @@ import dev.brunohm.bv2_projeto_software_uepg.repository.EquipamentoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ItemOsRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.OrdemServicoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ServicoRepository;
+import dev.brunohm.bv2_projeto_software_uepg.security.ContaAtual;
 import lombok.RequiredArgsConstructor;
 
 /**
  * Consolida os indicadores da operacao para o dashboard. Somente leitura: nao ha
- * escrita nem estado proprio.
+ * escrita nem estado proprio. Tudo e recortado pela conta da requisicao
+ * (ContaAtual), resolvida uma vez e passada as doze consultas.
  *
  * <p>
  * <b>Qual data recorta cada metrica.</b> Cada numero usa a data do evento que
@@ -70,16 +72,18 @@ public class PainelService {
     private final ClienteRepository clienteRepository;
     private final EquipamentoRepository equipamentoRepository;
     private final ServicoRepository servicoRepository;
+    private final ContaAtual contaAtual;
 
     public PainelResponse consultar(LocalDate dataInicio, LocalDate dataFim) {
         PeriodoResponse periodo = resolverPeriodo(dataInicio, dataFim);
+        Long usuarioId = contaAtual.id();
 
         return new PainelResponse(
                 periodo,
-                montarResumo(),
-                montarFaturamento(periodo),
-                montarSerieMensal(periodo),
-                montarRankings(periodo));
+                montarResumo(usuarioId),
+                montarFaturamento(usuarioId, periodo),
+                montarSerieMensal(usuarioId, periodo),
+                montarRankings(usuarioId, periodo));
     }
 
     /**
@@ -103,23 +107,24 @@ public class PainelService {
     }
 
     /** Fotografia de agora: quantas OS estao em cada status e o tamanho dos cadastros. */
-    private ResumoGeralResponse montarResumo() {
+    private ResumoGeralResponse montarResumo(Long usuarioId) {
         return ResumoGeralResponse.consolidar(
-                ordemServicoRepository.contarPorStatus(),
-                clienteRepository.countByAtivoTrue(),
-                equipamentoRepository.count(),
-                servicoRepository.countByAtivoTrue());
+                ordemServicoRepository.contarPorStatus(usuarioId),
+                clienteRepository.countByUsuarioIdAndAtivoTrue(usuarioId),
+                equipamentoRepository.countByClienteUsuarioId(usuarioId),
+                servicoRepository.countByUsuarioIdAndAtivoTrue(usuarioId));
     }
 
-    private FaturamentoResponse montarFaturamento(PeriodoResponse periodo) {
+    private FaturamentoResponse montarFaturamento(Long usuarioId, PeriodoResponse periodo) {
         TotaisEntreguesProjecao entregues = ordemServicoRepository.resumirEntregues(
-                StatusOs.ENTREGUE, periodo.dataInicio(), periodo.dataFim());
+                usuarioId, StatusOs.ENTREGUE, periodo.dataInicio(), periodo.dataFim());
 
         BigDecimal emAberto = ordemServicoRepository.somarEmAberto(
-                STATUS_EM_ABERTO, periodo.dataInicio(), periodo.dataFim());
+                usuarioId, STATUS_EM_ABERTO, periodo.dataInicio(), periodo.dataFim());
 
-        long comValorManual = ordemServicoRepository.countByValorTotalManualTrueAndDataEntradaBetween(
-                periodo.dataInicio(), periodo.dataFim());
+        long comValorManual = ordemServicoRepository
+                .countByClienteUsuarioIdAndValorTotalManualTrueAndDataEntradaBetween(
+                        usuarioId, periodo.dataInicio(), periodo.dataFim());
 
         // O tratamento de sum() nulo e do divisor zerado mora no proprio record.
         return FaturamentoResponse.calcular(
@@ -130,14 +135,14 @@ public class PainelService {
      * Agrupa no banco e completa em Java: o group by so devolve mes que teve
      * movimento, e o grafico precisa dos vazios para nao abrir buracos na linha.
      */
-    private List<SerieMensalResponse> montarSerieMensal(PeriodoResponse periodo) {
+    private List<SerieMensalResponse> montarSerieMensal(Long usuarioId, PeriodoResponse periodo) {
         Map<YearMonth, Long> ordens = ordemServicoRepository
-                .serieOrdensAbertas(periodo.dataInicio(), periodo.dataFim())
+                .serieOrdensAbertas(usuarioId, periodo.dataInicio(), periodo.dataFim())
                 .stream()
                 .collect(Collectors.toMap(PainelService::mesDe, SerieOrdensProjecao::quantidade));
 
         Map<YearMonth, BigDecimal> faturamento = ordemServicoRepository
-                .serieFaturamento(StatusOs.ENTREGUE, periodo.dataInicio(), periodo.dataFim())
+                .serieFaturamento(usuarioId, StatusOs.ENTREGUE, periodo.dataInicio(), periodo.dataFim())
                 .stream()
                 .collect(Collectors.toMap(PainelService::mesDe, SerieFaturamentoProjecao::valorTotal));
 
@@ -152,16 +157,16 @@ public class PainelService {
     }
 
     /* Pageable.ofSize sem Sort: um Sort aqui substituiria o order by da query. */
-    private RankingsResponse montarRankings(PeriodoResponse periodo) {
+    private RankingsResponse montarRankings(Long usuarioId, PeriodoResponse periodo) {
         Pageable limite = Pageable.ofSize(TOP_N);
 
         return new RankingsResponse(
                 itemOsRepository.rankingServicosMaisExecutados(
-                        periodo.dataInicio(), periodo.dataFim(), StatusOs.CANCELADA, limite),
+                        usuarioId, periodo.dataInicio(), periodo.dataFim(), StatusOs.CANCELADA, limite),
                 ordemServicoRepository.rankingClientesPorFaturamento(
-                        StatusOs.ENTREGUE, periodo.dataInicio(), periodo.dataFim(), limite),
+                        usuarioId, StatusOs.ENTREGUE, periodo.dataInicio(), periodo.dataFim(), limite),
                 itemOsRepository.rankingMarcasMaisAtendidas(
-                        periodo.dataInicio(), periodo.dataFim(), StatusOs.CANCELADA, limite));
+                        usuarioId, periodo.dataInicio(), periodo.dataFim(), StatusOs.CANCELADA, limite));
     }
 
     private static YearMonth mesDe(SerieOrdensProjecao projecao) {
