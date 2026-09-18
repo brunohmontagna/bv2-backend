@@ -5562,7 +5562,7 @@
 								"{{osDescartavelId}}"
 							]
 						},
-						"description": "A OS principal terminou ENTREGUE (historico, nao se apaga). O DELETE so aceita OS **sem itens** — e como toda OS nasce com pelo menos um, a descartavel e criada com um item e esvaziada no script antes da chamada.\n\n---\n\n## Referencia: `DELETE /ordens-servico/{id}`\n\nRemove definitivamente a OS.\n\n**Acesso:** Bearer JWT - qualquer usuario autenticado (MASTER ou ADMIN)\n\n### Parametros de path\n\n| Nome | Tipo | Descricao |\n|---|---|---|\n| id | Long | Id do(a) ordem de servico |\n\n### Regras de negocio\n- A OS precisa estar sem itens: remova-os antes (422).\n- OS com notificacoes registradas nao pode ser removida (409).\n\n### Status possiveis\n\n| Status | Quando |\n|---|---|\n| 204 | OS removida |\n| 401 | Token ausente, invalido, expirado, emitido antes da ultima troca de senha/e-mail, ou usuario desativado |\n| 404 | Ordem de servico nao encontrado(a) para o id informado |\n| 409 | Possui notificacoes |\n| 422 | Ainda possui itens |"
+						"description": "A OS principal terminou ENTREGUE e nao pode ser excluida (entra no faturamento). A descartavel e criada EM_ANDAMENTO e excluida com os itens dentro.\n\n---\n\n## Referencia: `DELETE /ordens-servico/{id}`\n\nRemove definitivamente a OS, com os itens e o log de notificacoes dela. Sem soft delete.\n\n**Acesso:** Bearer JWT - qualquer usuario autenticado (MASTER ou ADMIN), dentro da propria conta\n\n### Parametros de path\n\n| Nome | Tipo | Descricao |\n|---|---|---|\n| id | Long | Id da ordem de servico |\n\n### Regras de negocio\n- So EM_ANDAMENTO ou CANCELADA. CONCLUIDA e ENTREGUE respondem 422: entram no faturamento.\n- Itens e notificacoes da OS sao apagados junto, na mesma transacao.\n- O contadorUso dos servicos dos itens e decrementado.\n\n### Status possiveis\n\n| Status | Quando |\n|---|---|\n| 204 | OS removida |\n| 401 | Token ausente, invalido, expirado, emitido antes da ultima troca de senha/e-mail, ou usuario desativado |\n| 404 | Ordem de servico nao encontrada para o id informado (inclusive de outra conta) |\n| 422 | OS concluida ou entregue |"
 					},
 					"response": [
 						{
@@ -5589,7 +5589,7 @@
 							"body": ""
 						},
 						{
-							"name": "422 - OS com itens",
+							"name": "422 - OS concluida ou entregue",
 							"originalRequest": {
 								"method": "DELETE",
 								"header": [],
@@ -5614,7 +5614,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"A ordem de serviço possui itens. Remova os itens antes de excluí-la.\",\n  \"instance\": \"/ordens-servico/34\",\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}"
+							"body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Regra de negócio violada\",\n  \"status\": 422,\n  \"detail\": \"Ordem de serviço ENTREGUE não pode ser excluída, porque entra no faturamento. Para tirá-la de circulação, cancele-a.\",\n  \"instance\": \"/ordens-servico/1\"\n}"
 						}
 					],
 					"event": [
@@ -5623,27 +5623,8 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"// a OS principal terminou ENTREGUE (historico, nao se apaga): cria uma descartavel",
-									"// EM_ANDAMENTO. Ela nasce obrigatoriamente com um item, entao o item e removido aqui",
-									"// para que o DELETE encontre a OS vazia que a regra exige.",
-									"const base = pm.collectionVariables.get('baseUrl');",
-									"const h = {'Content-Type': 'application/json', Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
-									"const hd = {Authorization: 'Bearer ' + pm.collectionVariables.get('tokenMaster')};",
-									"pm.sendRequest({",
-									"    url: base + '/ordens-servico', method: 'POST', header: h,",
-									"    body: {mode: 'raw', raw: JSON.stringify({",
-									"        clienteId: Number(pm.collectionVariables.get('clienteOsId')),",
-									"        itens: [{equipamentoId: Number(pm.collectionVariables.get('equipamentoOsId')),",
-									"                 servicoId: Number(pm.collectionVariables.get('servicoOsId'))}]",
-									"    })}",
-									"}, (e, r) => {",
-									"    const id = r.json().id;",
-									"    pm.collectionVariables.set('osDescartavelId', id);",
-									"    pm.sendRequest({url: base + '/ordens-servico/' + id + '/itens', header: hd}, (e2, r2) => {",
-									"        pm.sendRequest({url: base + '/ordens-servico/' + id + '/itens/' + r2.json()[0].id,",
-									"                        method: 'DELETE', header: hd});",
-									"    });",
-									"});"
+									"// A OS principal terminou ENTREGUE e nao pode ser excluida (entra no faturamento).",
+									"// Cria uma descartavel EM_ANDAMENTO, com item, e exclui com os itens dentro."
 								]
 							}
 						},

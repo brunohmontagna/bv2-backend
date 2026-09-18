@@ -42,4 +42,14 @@ public interface NotificacaoRepository
              where n.cliente.id in (select c.id from Cliente c where c.usuarioId = :usuarioId)
             """)
     int excluirDaConta(@Param("usuarioId") Long usuarioId);
+
+    /*
+     * Exclusao definitiva de uma OS (OrdemServicoService.excluir): o log de envios
+     * aponta para ela por FK RESTRICT, entao sai junto. E o unico registro do que
+     * foi mandado ao cliente daquela ordem — por isso so OS sem dinheiro envolvido
+     * (EM_ANDAMENTO ou CANCELADA) pode ser excluida.
+     */
+    @Modifying
+    @Query("delete from Notificacao n where n.ordemServico.id = :ordemServicoId")
+    int excluirDaOrdemServico(@Param("ordemServicoId") Long ordemServicoId);
 }

@@ -426,9 +426,14 @@ EM_ANDAMENTO ──concluir──> CONCLUIDA ──entregar──> ENTREGUE  (te
   editar a observação e para adicionar, editar ou remover itens.
 - Cliente, status e datas **não** são editáveis pelo `PUT` — só a observação.
 - Não se abre OS para cliente inativo.
-- Só pode ser excluída se não tiver itens — como toda OS nasce com pelo menos um, excluir
-  exige antes esvaziá-la item a item (só possível enquanto `EM_ANDAMENTO`). Na prática o
-  caminho normal para desfazer uma OS é **cancelar**, não excluir.
+- **Exclusão é definitiva e leva junto os itens e o log de notificações** da ordem. Só vale
+  para `EM_ANDAMENTO` e `CANCELADA`: `CONCLUIDA` e `ENTREGUE` entram no faturamento, e
+  apagá-las reescreveria em silêncio o painel de um período já fechado (422). O caminho
+  normal para tirar uma OS de circulação continua sendo **cancelar**, que preserva tudo.
+- A limpeza é explícita no service, na ordem das dependências (itens, notificações, OS),
+  porque as FKs são `ON DELETE RESTRICT`. O `contadorUso` dos serviços é devolvido item a
+  item: sem isso o ranking de mais executados contaria para sempre uma execução que deixou
+  de existir.
 
 ### Itens da OS
 
