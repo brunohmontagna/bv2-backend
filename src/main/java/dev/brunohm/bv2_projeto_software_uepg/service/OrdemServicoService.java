@@ -33,6 +33,7 @@ import dev.brunohm.bv2_projeto_software_uepg.exception.RegraDeNegocioException;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ClienteRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.EquipamentoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ItemOsRepository;
+import dev.brunohm.bv2_projeto_software_uepg.repository.NotificacaoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.OrdemServicoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.repository.ServicoRepository;
 import dev.brunohm.bv2_projeto_software_uepg.security.ContaAtual;
@@ -55,6 +56,7 @@ public class OrdemServicoService {
     private final ClienteRepository clienteRepository;
     private final EquipamentoRepository equipamentoRepository;
     private final ServicoRepository servicoRepository;
+    private final NotificacaoRepository notificacaoRepository;
     private final ApplicationEventPublisher eventos;
     private final ContaAtual contaAtual;
 
@@ -148,19 +150,41 @@ public class OrdemServicoService {
     }
 
     /**
-     * A FK id_ordem_servico de itens_os e ON DELETE RESTRICT. O exists antecipado
-     * troca o 409 generico do banco por uma mensagem que diz o que fazer; o flush
-     * explicito cobre a corrida e faz a violacao virar
-     * DataIntegrityViolationException (409) aqui, e nao no commit.
+     * Exclusao definitiva: leva junto os itens e o log de notificacoes da ordem.
+     * Nao ha desfazer — o caminho normal para tirar uma OS de circulacao continua
+     * sendo cancelar, que preserva o historico.
+     *
+     * <p>
+     * So EM_ANDAMENTO e CANCELADA. CONCLUIDA e ENTREGUE carregam faturamento: apagar
+     * uma delas reescreveria o painel de um periodo ja fechado, em silencio.
+     *
+     * <p>
+     * As FKs de itens_os e notificacoes sao ON DELETE RESTRICT de proposito, entao a
+     * limpeza e explicita e na ordem das dependencias. O contadorUso dos servicos e
+     * devolvido item a item: sem isso o ranking de mais executados contaria para
+     * sempre uma execucao que deixou de existir.
      */
     @Transactional
     public void excluir(Long id) {
         OrdemServico ordemServico = buscarEntidade(id);
 
-        if (itemOsRepository.existsByOrdemServicoId(id)) {
+        StatusOs status = ordemServico.getStatus();
+        if (status == StatusOs.CONCLUIDA || status == StatusOs.ENTREGUE) {
             throw new RegraDeNegocioException(
-                    "A ordem de serviço possui itens. Remova os itens antes de excluí-la.");
+                    "Ordem de serviço " + status + " não pode ser excluída, porque entra no faturamento. "
+                            + "Para tirá-la de circulação, cancele-a.");
         }
+
+        List<ItemOs> itens = itemOsRepository.findByOrdemServicoIdOrderByIdAsc(id);
+        for (ItemOs item : itens) {
+            Servico servico = item.getServico();
+            // Piso em zero por causa do chk_servicos_contador_uso_positivo.
+            servico.setContadorUso(Math.max(0, servico.getContadorUso() - 1));
+            servicoRepository.save(servico);
+        }
+        itemOsRepository.deleteAll(itens);
+        notificacaoRepository.excluirDaOrdemServico(id);
+        itemOsRepository.flush();
 
         ordemServicoRepository.delete(ordemServico);
         ordemServicoRepository.flush();

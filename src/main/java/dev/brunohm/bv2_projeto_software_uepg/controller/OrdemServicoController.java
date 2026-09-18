@@ -172,13 +172,13 @@ public class OrdemServicoController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Remove definitivamente a ordem de serviço (precisa estar sem itens)")
+    @Operation(summary = "Remove definitivamente a ordem de serviço, com os itens e o log de notificações dela. "
+            + "Só EM_ANDAMENTO ou CANCELADA: concluída e entregue entram no faturamento")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Ordem de serviço removida"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou inválido"),
             @ApiResponse(responseCode = "404", description = "Ordem de serviço não encontrada"),
-            @ApiResponse(responseCode = "409", description = "Vínculos impedem a exclusão (notificações)"),
-            @ApiResponse(responseCode = "422", description = "Ordem de serviço ainda possui itens")
+            @ApiResponse(responseCode = "422", description = "Ordem de serviço concluída ou entregue")
     })
     public ResponseEntity<Void> excluir(@PathVariable Long id) {
         ordemServicoService.excluir(id);
