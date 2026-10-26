@@ -128,6 +128,10 @@ public class RecuperacaoSenhaService {
         // troca, nenhum link antigo de recuperacao pode continuar valendo.
         tokenVerificacaoService.consumir(token);
 
+        // Uma troca pedida antes da redefinicao nao pode desfaze-la depois: se quem
+        // pediu foi um intruso, o clique no link antigo devolveria a senha dele.
+        tokenVerificacaoService.invalidarPendentes(usuario, FinalidadeToken.ALTERACAO_SENHA);
+
         log.info("Senha redefinida por recuperação para o usuário {}.", usuario.getId());
     }
 }

@@ -19,11 +19,11 @@ import dev.brunohm.bv2_projeto_software_uepg.repository.TokenVerificacaoReposito
 
 /**
  * A mecanica de token enviada por e-mail, num lugar so: geracao, hash, validacao
- * e consumo. Os fluxos (recuperacao de senha, alteracao de e-mail) decidem o que
+ * e consumo. Os fluxos (recuperacao de senha, alteracao de e-mail e de senha) decidem o que
  * fazer com o token; como ele e gerado e verificado mora aqui.
  *
  * <p>
- * Existe para que os dois fluxos nao tenham cada um sua copia de codigo de
+ * Existe para que os fluxos nao tenham cada um sua copia de codigo de
  * seguranca: duas copias divergiriam na primeira correcao aplicada so de um lado.
  *
  * <p>
@@ -57,6 +57,15 @@ public class TokenVerificacaoService {
      */
     public String emitir(Usuario usuario, FinalidadeToken finalidade, String emailNovo,
             long expiracaoMinutos) {
+        return emitir(usuario, finalidade, emailNovo, null, expiracaoMinutos);
+    }
+
+    /**
+     * Como o {@link #emitir(Usuario, FinalidadeToken, String, long)}, levando junto o
+     * hash da senha pedida (so na ALTERACAO_SENHA).
+     */
+    public String emitir(Usuario usuario, FinalidadeToken finalidade, String emailNovo,
+            String senhaNovaHash, long expiracaoMinutos) {
         LocalDateTime agora = LocalDateTime.now();
         tokenRepository.invalidarPendentesDoUsuario(usuario.getId(), finalidade, agora);
 
@@ -66,6 +75,7 @@ public class TokenVerificacaoService {
                 .tokenHash(hash(token))
                 .finalidade(finalidade)
                 .emailNovo(emailNovo)
+                .senhaNova(senhaNovaHash)
                 .expiraEm(agora.plusMinutes(expiracaoMinutos))
                 .build());
         return token;
@@ -100,6 +110,14 @@ public class TokenVerificacaoService {
         tokenRepository.save(token);
         tokenRepository.invalidarPendentesDoUsuario(
                 token.getUsuario().getId(), token.getFinalidade(), agora);
+    }
+
+    /**
+     * Derruba os links pendentes de uma finalidade sem emitir outro. Usado quando a
+     * senha muda por outro caminho e um pedido antigo deixaria de fazer sentido.
+     */
+    public void invalidarPendentes(Usuario usuario, FinalidadeToken finalidade) {
+        tokenRepository.invalidarPendentesDoUsuario(usuario.getId(), finalidade, LocalDateTime.now());
     }
 
     /** Monta o link para uma tela do front. A barra final da URL nao vira //. */

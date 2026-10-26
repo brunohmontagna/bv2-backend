@@ -4,7 +4,7 @@ package dev.brunohm.bv2_projeto_software_uepg.domain.enums;
  * Para que serve um TokenVerificacao.
  *
  * <p>
- * Existe porque os dois fluxos compartilham a mesma mecanica (hash SHA-256, uso
+ * Existe porque os tres fluxos compartilham a mesma mecanica (hash SHA-256, uso
  * unico, expiracao, invalidacao em cascata) e duas tabelas separadas divergiriam
  * na primeira correcao aplicada so de um lado.
  *
@@ -15,5 +15,6 @@ package dev.brunohm.bv2_projeto_software_uepg.domain.enums;
  */
 public enum FinalidadeToken {
     RECUPERACAO_SENHA,
-    ALTERACAO_EMAIL
+    ALTERACAO_EMAIL,
+    ALTERACAO_SENHA
 }

@@ -26,6 +26,7 @@ import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioAtualizacaoReque
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioCriacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioResponse;
 import dev.brunohm.bv2_projeto_software_uepg.service.AlteracaoEmailService;
+import dev.brunohm.bv2_projeto_software_uepg.service.AlteracaoSenhaService;
 import dev.brunohm.bv2_projeto_software_uepg.service.UsuarioService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -49,6 +50,7 @@ public class UsuarioController {
 
     private final UsuarioService usuarioService;
     private final AlteracaoEmailService alteracaoEmailService;
+    private final AlteracaoSenhaService alteracaoSenhaService;
 
     // ------------------------------------------------------------------
     // Proprio usuario: aberto a qualquer autenticado
@@ -76,17 +78,24 @@ public class UsuarioController {
         return ResponseEntity.ok(usuarioService.atualizarAutenticado(request));
     }
 
+    /**
+     * Nada muda aqui: a senha nova so passa a valer quando o link enviado ao e-mail
+     * atual for clicado. Por isso 202, como no PUT /usuarios/eu/email.
+     */
     @PutMapping("/eu/senha")
-    @Operation(summary = "Troca a senha do próprio usuário, exigindo a senha atual")
+    @Operation(summary = "Pede a troca da própria senha; a confirmação vai para o e-mail atual",
+            description = "Exige a senha atual. A troca só acontece quando o link enviado ao e-mail "
+                    + "do usuário for usado em POST /auth/senha/confirmar. Até lá, a senha atual "
+                    + "continua valendo.")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Senha alterada. Os tokens emitidos antes deixam de valer"),
+            @ApiResponse(responseCode = "202", description = "Pedido registrado; link enviado ao e-mail atual"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou inválido"),
             @ApiResponse(responseCode = "422", description = "Senha atual incorreta, confirmação divergente ou nova senha igual à atual")
     })
-    public ResponseEntity<Void> alterarSenha(@Valid @RequestBody AlteracaoSenhaRequest request) {
-        usuarioService.alterarSenhaAutenticado(request);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<Void> solicitarAlteracaoSenha(@Valid @RequestBody AlteracaoSenhaRequest request) {
+        alteracaoSenhaService.solicitar(request);
+        return ResponseEntity.accepted().build();
     }
 
     /**

@@ -7,11 +7,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.brunohm.bv2_projeto_software_uepg.dto.auth.ConfirmacaoEmailRequest;
+import dev.brunohm.bv2_projeto_software_uepg.dto.auth.ConfirmacaoSenhaRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.auth.LoginRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.auth.LoginResponse;
 import dev.brunohm.bv2_projeto_software_uepg.dto.auth.RecuperacaoSenhaRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.auth.RedefinicaoSenhaRequest;
 import dev.brunohm.bv2_projeto_software_uepg.service.AlteracaoEmailService;
+import dev.brunohm.bv2_projeto_software_uepg.service.AlteracaoSenhaService;
 import dev.brunohm.bv2_projeto_software_uepg.service.AuthService;
 import dev.brunohm.bv2_projeto_software_uepg.service.RecuperacaoSenhaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,12 +26,13 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
-@Tag(name = "Autenticação", description = "Emissão de tokens JWT, recuperação de senha e confirmação de e-mail. Rotas públicas")
+@Tag(name = "Autenticação", description = "Emissão de tokens JWT, recuperação de senha e confirmação de troca de e-mail e de senha. Rotas públicas")
 public class AuthController {
 
     private final AuthService authService;
     private final RecuperacaoSenhaService recuperacaoSenhaService;
     private final AlteracaoEmailService alteracaoEmailService;
+    private final AlteracaoSenhaService alteracaoSenhaService;
 
     @PostMapping("/login")
     @Operation(summary = "Autentica um usuário e devolve o token JWT")
@@ -70,6 +73,25 @@ public class AuthController {
     })
     public ResponseEntity<Void> redefinirSenha(@Valid @RequestBody RedefinicaoSenhaRequest request) {
         recuperacaoSenhaService.redefinir(request);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Publica pelo mesmo motivo do /auth/email/confirmar: o token e a credencial, e o
+     * link costuma ser aberto em outro navegador ou no celular, sem sessao.
+     */
+    @PostMapping("/senha/confirmar")
+    @Operation(summary = "Confirma a troca de senha usando o token enviado ao e-mail do usuário",
+            description = "Efetiva a senha escolhida em PUT /usuarios/eu/senha e derruba as sessões "
+                    + "abertas, inclusive a que fez o pedido. Token inexistente, usado, expirado ou de "
+                    + "outro fluxo devolvem a mesma mensagem, de propósito.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Senha alterada. Os tokens emitidos antes deixam de valer"),
+            @ApiResponse(responseCode = "400", description = "Token ausente"),
+            @ApiResponse(responseCode = "422", description = "Link inválido ou expirado")
+    })
+    public ResponseEntity<Void> confirmarSenha(@Valid @RequestBody ConfirmacaoSenhaRequest request) {
+        alteracaoSenhaService.confirmar(request);
         return ResponseEntity.noContent().build();
     }
 
