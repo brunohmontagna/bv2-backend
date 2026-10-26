@@ -128,10 +128,10 @@ public class OrdemServicoService {
         return OrdemServicoResponse.fromEntity(ordemServico);
     }
 
-    public PaginaResponse<OrdemServicoResponse> listar(Long clienteId, StatusOs status,
-            LocalDate dataInicio, LocalDate dataFim, Pageable pageable) {
+    public PaginaResponse<OrdemServicoResponse> listar(Long clienteId, List<StatusOs> status,
+            LocalDate dataInicio, LocalDate dataFim, String busca, Pageable pageable) {
         Page<OrdemServico> pagina = ordemServicoRepository
-                .findAll(filtrar(clienteId, status, dataInicio, dataFim), pageable);
+                .findAll(filtrar(clienteId, status, dataInicio, dataFim, busca), pageable);
         return PaginaResponse.de(pagina, OrdemServicoResponse::fromEntity);
     }
 
@@ -433,8 +433,13 @@ public class OrdemServicoService {
         }
     }
 
-    private Specification<OrdemServico> filtrar(Long clienteId, StatusOs status,
-            LocalDate dataInicio, LocalDate dataFim) {
+    /*
+     * status e lista para a tela poder pedir "em aberto" (EM_ANDAMENTO + CONCLUIDA)
+     * numa chamada so. busca e o campo livre: parte do nome do cliente ou, se for
+     * numero, o numero da OS.
+     */
+    private Specification<OrdemServico> filtrar(Long clienteId, List<StatusOs> status,
+            LocalDate dataInicio, LocalDate dataFim, String busca) {
         Long usuarioId = contaAtual.id();
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
@@ -442,8 +447,15 @@ public class OrdemServicoService {
             if (clienteId != null) {
                 predicados.add(cb.equal(root.get("cliente").get("id"), clienteId));
             }
-            if (status != null) {
-                predicados.add(cb.equal(root.get("status"), status));
+            if (status != null && !status.isEmpty()) {
+                predicados.add(root.get("status").in(status));
+            }
+            if (busca != null && !busca.isBlank()) {
+                String termo = busca.trim();
+                Predicate porCliente = BuscaTexto.contem(cb, root.get("cliente").get("nome"), termo);
+                predicados.add(termo.matches("\\d{1,18}")
+                        ? cb.or(porCliente, cb.equal(root.get("id"), Long.valueOf(termo)))
+                        : porCliente);
             }
             if (dataInicio != null) {
                 predicados.add(cb.greaterThanOrEqualTo(root.get("dataEntrada"), dataInicio));

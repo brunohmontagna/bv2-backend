@@ -1,5 +1,6 @@
 package dev.brunohm.bv2_projeto_software_uepg.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -69,10 +70,12 @@ public class NotificacaoService {
     // ------------------------------------------------------------------
 
     public PaginaResponse<NotificacaoResponse> listar(Long ordemServicoId, Long clienteId,
-            StatusOs statusOs, StatusNotificacao status, Pageable pageable) {
+            StatusOs statusOs, StatusNotificacao status, LocalDate dataInicio, LocalDate dataFim,
+            String busca, Pageable pageable) {
 
         Page<Notificacao> pagina = notificacaoRepository.findAll(
-                filtrar(ordemServicoId, clienteId, statusOs, status), pageable);
+                filtrar(ordemServicoId, clienteId, statusOs, status, dataInicio, dataFim, busca),
+                pageable);
 
         return PaginaResponse.de(pagina, NotificacaoResponse::fromEntity);
     }
@@ -87,8 +90,14 @@ public class NotificacaoService {
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Notificação", id));
     }
 
+    /*
+     * O periodo recorta criadoEm (o envio), inclusivo nas duas pontas: dataFim vira
+     * "antes do dia seguinte" porque criadoEm tem hora. busca e o campo livre: parte
+     * do nome do cliente ou do texto enviado, ou o numero da OS.
+     */
     private Specification<Notificacao> filtrar(Long ordemServicoId, Long clienteId,
-            StatusOs statusOs, StatusNotificacao status) {
+            StatusOs statusOs, StatusNotificacao status, LocalDate dataInicio, LocalDate dataFim,
+            String busca) {
         Long usuarioId = contaAtual.id();
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
@@ -105,6 +114,21 @@ public class NotificacaoService {
             }
             if (status != null) {
                 predicados.add(cb.equal(root.get("status"), status));
+            }
+            if (dataInicio != null) {
+                predicados.add(cb.greaterThanOrEqualTo(root.get("criadoEm"), dataInicio.atStartOfDay()));
+            }
+            if (dataFim != null) {
+                predicados.add(cb.lessThan(root.get("criadoEm"), dataFim.plusDays(1).atStartOfDay()));
+            }
+            if (busca != null && !busca.isBlank()) {
+                String termo = busca.trim();
+                Predicate porTexto = cb.or(
+                        BuscaTexto.contem(cb, root.get("cliente").get("nome"), termo),
+                        BuscaTexto.contem(cb, root.get("conteudo"), termo));
+                predicados.add(termo.matches("\\d{1,18}")
+                        ? cb.or(porTexto, cb.equal(root.get("ordemServico").get("id"), Long.valueOf(termo)))
+                        : porTexto);
             }
 
             return cb.and(predicados.toArray(new Predicate[0]));

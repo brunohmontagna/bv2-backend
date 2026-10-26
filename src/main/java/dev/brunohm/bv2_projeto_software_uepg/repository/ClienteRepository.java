@@ -1,5 +1,7 @@
 package dev.brunohm.bv2_projeto_software_uepg.repository;
 
+import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -17,6 +19,14 @@ import dev.brunohm.bv2_projeto_software_uepg.domain.entity.Cliente;
 @Repository
 public interface ClienteRepository
         extends JpaRepository<Cliente, Long>, JpaSpecificationExecutor<Cliente> {
+
+    /*
+     * Aviso de possivel duplicidade no cadastro: mesmo nome (sem caixa) e mesmo
+     * telefone na conta. Nao e unicidade — homonimos no mesmo telefone existem (pai
+     * e filho), entao o front so avisa e deixa seguir.
+     */
+    List<Cliente> findByUsuarioIdAndNomeIgnoreCaseAndTelefoneOrderByIdAsc(
+            Long usuarioId, String nome, String telefone);
 
     /* Resumo do painel: cliente inativo saiu da carteira e nao conta como base ativa. */
     long countByUsuarioIdAndAtivoTrue(Long usuarioId);

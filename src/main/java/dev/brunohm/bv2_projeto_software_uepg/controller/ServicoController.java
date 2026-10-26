@@ -44,7 +44,7 @@ public class ServicoController {
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Serviço criado"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos"),
-            @ApiResponse(responseCode = "409", description = "Já existe um serviço com esse nome e valor")
+            @ApiResponse(responseCode = "409", description = "Já existe um serviço com esse nome")
     })
     public ResponseEntity<ServicoResponse> criar(@Valid @RequestBody ServicoRequest request) {
         ServicoResponse criado = servicoService.criar(request);
@@ -56,12 +56,14 @@ public class ServicoController {
     }
 
     @GetMapping
-    @Operation(summary = "Lista serviços de forma paginada, com filtro por nome e situação")
+    @Operation(summary = "Lista serviços de forma paginada, com filtro por nome, busca livre e situação",
+            description = "busca casa com parte do nome ou da descrição.")
     public ResponseEntity<PaginaResponse<ServicoResponse>> listar(
             @RequestParam(required = false) String nome,
+            @RequestParam(required = false) String busca,
             @RequestParam(required = false) Boolean ativo,
             @PageableDefault(size = 20, sort = "nome", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(servicoService.listar(nome, ativo, pageable));
+        return ResponseEntity.ok(servicoService.listar(nome, busca, ativo, pageable));
     }
 
     @GetMapping("/{id}")
@@ -80,7 +82,7 @@ public class ServicoController {
             @ApiResponse(responseCode = "200", description = "Serviço atualizado"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos"),
             @ApiResponse(responseCode = "404", description = "Serviço não encontrado"),
-            @ApiResponse(responseCode = "409", description = "Já existe outro serviço com esse nome e valor")
+            @ApiResponse(responseCode = "409", description = "Já existe outro serviço com esse nome")
     })
     public ResponseEntity<ServicoResponse> atualizar(
             @PathVariable Long id,

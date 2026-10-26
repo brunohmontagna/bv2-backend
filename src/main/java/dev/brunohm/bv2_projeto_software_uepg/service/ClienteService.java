@@ -45,9 +45,27 @@ public class ClienteService {
         return ClienteResponse.fromEntity(cliente);
     }
 
-    public PaginaResponse<ClienteResponse> listar(String nome, Boolean ativo, Pageable pageable) {
-        Page<Cliente> pagina = clienteRepository.findAll(filtrar(nome, ativo), pageable);
+    public PaginaResponse<ClienteResponse> listar(String nome, String busca, Boolean ativo,
+            Pageable pageable) {
+        Page<Cliente> pagina = clienteRepository.findAll(filtrar(nome, busca, ativo), pageable);
         return PaginaResponse.de(pagina, ClienteResponse::fromEntity);
+    }
+
+    /**
+     * Clientes da conta com o mesmo nome e o mesmo telefone. Consultado pelo front
+     * antes de salvar, para avisar — nunca bloqueia: o cadastro continua livre.
+     *
+     * @param ignorarId o proprio cliente, na edicao; nulo no cadastro.
+     */
+    public List<ClienteResponse> buscarPossiveisDuplicados(String nome, String telefone,
+            Long ignorarId) {
+        return clienteRepository
+                .findByUsuarioIdAndNomeIgnoreCaseAndTelefoneOrderByIdAsc(
+                        contaAtual.id(), nome.trim(), telefone)
+                .stream()
+                .filter(cliente -> !cliente.getId().equals(ignorarId))
+                .map(ClienteResponse::fromEntity)
+                .toList();
     }
 
     public ClienteResponse buscarPorId(Long id) {
@@ -89,13 +107,25 @@ public class ClienteService {
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Cliente", id));
     }
 
-    private Specification<Cliente> filtrar(String nome, Boolean ativo) {
+    /*
+     * busca e o campo livre da tela: casa com parte do nome ou, quando tem digitos,
+     * com parte do telefone (guardado so com digitos). nome continua para quem ja
+     * usava a API filtrando so por nome.
+     */
+    private Specification<Cliente> filtrar(String nome, String busca, Boolean ativo) {
         Long usuarioId = contaAtual.id();
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
             predicados.add(cb.equal(root.get("usuarioId"), usuarioId));
             if (nome != null && !nome.isBlank()) {
                 predicados.add(cb.like(cb.lower(root.get("nome")), "%" + nome.toLowerCase() + "%"));
+            }
+            if (busca != null && !busca.isBlank()) {
+                String digitos = busca.replaceAll("\\D", "");
+                Predicate porNome = BuscaTexto.contem(cb, root.get("nome"), busca);
+                predicados.add(digitos.isEmpty()
+                        ? porNome
+                        : cb.or(porNome, cb.like(root.get("telefone"), "%" + digitos + "%")));
             }
             if (ativo != null) {
                 predicados.add(cb.equal(root.get("ativo"), ativo));

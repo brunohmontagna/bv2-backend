@@ -79,8 +79,9 @@ public class UsuarioService {
         return UsuarioResponse.fromEntity(usuario);
     }
 
-    public PaginaResponse<UsuarioResponse> listar(String nome, Boolean ativo, Pageable pageable) {
-        Page<Usuario> pagina = usuarioRepository.findAll(filtrar(nome, ativo), pageable);
+    public PaginaResponse<UsuarioResponse> listar(String nome, String busca, Boolean ativo,
+            Pageable pageable) {
+        Page<Usuario> pagina = usuarioRepository.findAll(filtrar(nome, busca, ativo), pageable);
         return PaginaResponse.de(pagina, UsuarioResponse::fromEntity);
     }
 
@@ -177,11 +178,17 @@ public class UsuarioService {
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Usuário", id));
     }
 
-    private Specification<Usuario> filtrar(String nome, Boolean ativo) {
+    /* busca e o campo livre da tela: parte do nome ou do e-mail. */
+    private Specification<Usuario> filtrar(String nome, String busca, Boolean ativo) {
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
             if (nome != null && !nome.isBlank()) {
                 predicados.add(cb.like(cb.lower(root.get("nome")), "%" + nome.toLowerCase() + "%"));
+            }
+            if (busca != null && !busca.isBlank()) {
+                predicados.add(cb.or(
+                        BuscaTexto.contem(cb, root.get("nome"), busca),
+                        BuscaTexto.contem(cb, root.get("email"), busca)));
             }
             if (ativo != null) {
                 predicados.add(cb.equal(root.get("ativo"), ativo));

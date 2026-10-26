@@ -1,7 +1,5 @@
 package dev.brunohm.bv2_projeto_software_uepg.repository;
 
-import java.math.BigDecimal;
-
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -15,13 +13,13 @@ import dev.brunohm.bv2_projeto_software_uepg.domain.entity.Servico;
 public interface ServicoRepository extends JpaRepository<Servico, Long>, JpaSpecificationExecutor<Servico> {
 
     /*
-     * Pre-checagem da unicidade (conta, nome, valor) — indice uq_servicos_usuario_nome_valor
-     * (V22) — para dar 409 com mensagem propria.
+     * Pre-checagem da unicidade (conta, nome) — indice uq_servicos_usuario_nome (V14) —
+     * para dar 409 com mensagem propria.
      */
-    boolean existsByUsuarioIdAndNomeIgnoreCaseAndValor(Long usuarioId, String nome, BigDecimal valor);
+    boolean existsByUsuarioIdAndNomeIgnoreCase(Long usuarioId, String nome);
 
     /* Usado na atualizacao, para o servico nao colidir com ele mesmo. */
-    boolean existsByUsuarioIdAndNomeIgnoreCaseAndValorAndIdNot(Long usuarioId, String nome, BigDecimal valor, Long id);
+    boolean existsByUsuarioIdAndNomeIgnoreCaseAndIdNot(Long usuarioId, String nome, Long id);
 
     /* Resumo do painel: mede o catalogo oferecido hoje, nao o historico. */
     long countByUsuarioIdAndAtivoTrue(Long usuarioId);

@@ -145,7 +145,8 @@ public class UsuarioController {
 
     @GetMapping
     @PreAuthorize("hasRole('MASTER')")
-    @Operation(summary = "Lista os usuários do sistema, com filtro por nome e situação")
+    @Operation(summary = "Lista os usuários do sistema, com filtro por nome, busca livre e situação",
+            description = "busca casa com parte do nome ou do e-mail.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Página de usuários"),
             @ApiResponse(responseCode = "401", description = "Token ausente ou inválido"),
@@ -153,9 +154,10 @@ public class UsuarioController {
     })
     public ResponseEntity<PaginaResponse<UsuarioResponse>> listar(
             @RequestParam(required = false) String nome,
+            @RequestParam(required = false) String busca,
             @RequestParam(required = false) Boolean ativo,
             @PageableDefault(size = 20, sort = "nome", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(usuarioService.listar(nome, ativo, pageable));
+        return ResponseEntity.ok(usuarioService.listar(nome, busca, ativo, pageable));
     }
 
     @GetMapping("/{id}")
