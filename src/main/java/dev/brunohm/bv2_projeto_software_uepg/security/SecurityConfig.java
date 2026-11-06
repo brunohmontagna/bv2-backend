@@ -81,7 +81,9 @@ public class SecurityConfig {
                 .filter(origem -> !origem.isEmpty())
                 .toList());
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // X-Conta-Id: conta em que o MASTER opera (ContaAtual). Sem ele na lista, o preflight
+        // de toda chamada do MASTER em outra conta e barrado pelo navegador.
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", ContaAtual.HEADER));
         // Autenticacao e JWT no header Authorization, nao cookie: credentials desligado.
         config.setAllowCredentials(false);
         config.setMaxAge(3600L);
