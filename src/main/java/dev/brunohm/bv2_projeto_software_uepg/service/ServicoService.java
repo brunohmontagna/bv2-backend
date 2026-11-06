@@ -36,10 +36,9 @@ public class ServicoService {
     @Transactional
     public ServicoResponse criar(ServicoRequest request) {
         Long usuarioId = contaAtual.id();
-        if (servicoRepository.existsByUsuarioIdAndNomeIgnoreCaseAndValor(usuarioId, request.nome(), request.valor())) {
+        if (servicoRepository.existsByUsuarioIdAndNomeIgnoreCase(usuarioId, request.nome())) {
             throw new RecursoDuplicadoException(
-                    "Já existe um serviço '" + request.nome() + "' com o valor " + request.valor()
-                            + ". Diferencie o nome ou o valor.");
+                    "Já existe um serviço chamado '" + request.nome() + "'.");
         }
 
         Servico servico = servicoRepository.save(Servico.builder()
@@ -52,8 +51,9 @@ public class ServicoService {
         return ServicoResponse.fromEntity(servico);
     }
 
-    public PaginaResponse<ServicoResponse> listar(String nome, Boolean ativo, Pageable pageable) {
-        Page<Servico> pagina = servicoRepository.findAll(filtrar(nome, ativo), pageable);
+    public PaginaResponse<ServicoResponse> listar(String nome, String busca, Boolean ativo,
+            Pageable pageable) {
+        Page<Servico> pagina = servicoRepository.findAll(filtrar(nome, busca, ativo), pageable);
         return PaginaResponse.de(pagina, ServicoResponse::fromEntity);
     }
 
@@ -66,11 +66,10 @@ public class ServicoService {
     public ServicoResponse atualizar(Long id, ServicoRequest request) {
         Servico servico = buscarEntidade(id);
 
-        if (servicoRepository.existsByUsuarioIdAndNomeIgnoreCaseAndValorAndIdNot(
-                servico.getUsuarioId(), request.nome(), request.valor(), id)) {
+        if (servicoRepository.existsByUsuarioIdAndNomeIgnoreCaseAndIdNot(
+                servico.getUsuarioId(), request.nome(), id)) {
             throw new RecursoDuplicadoException(
-                    "Já existe outro serviço '" + request.nome() + "' com o valor " + request.valor()
-                            + ". Diferencie o nome ou o valor.");
+                    "Já existe outro serviço chamado '" + request.nome() + "'.");
         }
 
         servico.setNome(request.nome());
@@ -105,13 +104,19 @@ public class ServicoService {
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Serviço", id));
     }
 
-    private Specification<Servico> filtrar(String nome, Boolean ativo) {
+    /* busca e o campo livre da tela: parte do nome ou da descricao. */
+    private Specification<Servico> filtrar(String nome, String busca, Boolean ativo) {
         Long usuarioId = contaAtual.id();
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
             predicados.add(cb.equal(root.get("usuarioId"), usuarioId));
             if (nome != null && !nome.isBlank()) {
                 predicados.add(cb.like(cb.lower(root.get("nome")), "%" + nome.toLowerCase() + "%"));
+            }
+            if (busca != null && !busca.isBlank()) {
+                predicados.add(cb.or(
+                        BuscaTexto.contem(cb, root.get("nome"), busca),
+                        BuscaTexto.contem(cb, root.get("descricao"), busca)));
             }
             if (ativo != null) {
                 predicados.add(cb.equal(root.get("ativo"), ativo));

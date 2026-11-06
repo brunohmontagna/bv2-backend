@@ -1,0 +1,14 @@
+target/
+.env
+.env.*
+!.env.example
+.git/
+.github/
+.claude/
+.idea/
+.vscode/
+postman/
+deploy/
+*.md
+Dockerfile
+.dockerignore

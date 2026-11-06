@@ -1,10 +1,12 @@
 package dev.brunohm.bv2_projeto_software_uepg.controller;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -46,15 +48,21 @@ public class NotificacaoController {
     // ------------------------------------------------------------------
 
     @GetMapping
-    @Operation(summary = "Lista os envios de forma paginada, com filtro por OS, cliente, status da OS e resultado do envio")
+    @Operation(summary = "Lista os envios de forma paginada, com filtro por OS, cliente, status da OS, "
+            + "resultado do envio, período e busca livre",
+            description = "dataInicio/dataFim recortam a data do envio, inclusivas. busca casa com parte do "
+                    + "nome do cliente ou do texto enviado, ou com o número da OS.")
     public ResponseEntity<PaginaResponse<NotificacaoResponse>> listar(
             @RequestParam(required = false) Long ordemServicoId,
             @RequestParam(required = false) Long clienteId,
             @RequestParam(required = false) StatusOs statusOs,
             @RequestParam(required = false) StatusNotificacao status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim,
+            @RequestParam(required = false) String busca,
             @PageableDefault(size = 20, sort = "criadoEm", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(
-                notificacaoService.listar(ordemServicoId, clienteId, statusOs, status, pageable));
+        return ResponseEntity.ok(notificacaoService.listar(
+                ordemServicoId, clienteId, statusOs, status, dataInicio, dataFim, busca, pageable));
     }
 
     @GetMapping("/{id}")

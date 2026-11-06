@@ -25,9 +25,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Token de uso unico enviado por e-mail. Serve aos dois fluxos que precisam
- * provar posse de uma caixa postal: recuperar a senha e confirmar um endereco
- * novo. Qual dos dois e o que diz a {@link FinalidadeToken}.
+ * Token de uso unico enviado por e-mail. Serve aos fluxos que precisam provar
+ * posse de uma caixa postal: recuperar a senha, confirmar um endereco novo e
+ * confirmar uma troca de senha. Qual deles e o que diz a {@link FinalidadeToken}.
  *
  * <p>
  * <b>O token em si nunca e persistido</b> — so o SHA-256 dele. O valor em claro
@@ -71,6 +71,17 @@ public class TokenVerificacao {
      */
     @Column(name = "email_novo", length = 50)
     private String emailNovo;
+
+    /**
+     * Hash BCrypt da senha pedida. Preenchido so em ALTERACAO_SENHA: a senha nova e
+     * escolhida no pedido e so passa a valer no clique, como o emailNovo.
+     *
+     * <p>
+     * Ja vai em hash porque o token fica no banco ate expirar — a senha em claro
+     * nao pode ficar parada em lugar nenhum.
+     */
+    @Column(name = "senha_nova", length = 60)
+    private String senhaNova;
 
     @Column(name = "expira_em", nullable = false)
     private LocalDateTime expiraEm;

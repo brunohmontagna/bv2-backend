@@ -1,6 +1,7 @@
 package dev.brunohm.bv2_projeto_software_uepg.controller;
 
 import java.net.URI;
+import java.util.List;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -56,12 +57,33 @@ public class ClienteController {
     }
 
     @GetMapping
-    @Operation(summary = "Lista clientes de forma paginada, com filtro por nome e situação")
+    @Operation(summary = "Lista clientes de forma paginada, com filtro por nome, busca livre e situação",
+            description = "busca casa com parte do nome ou, se tiver dígitos, com parte do telefone.")
     public ResponseEntity<PaginaResponse<ClienteResponse>> listar(
             @RequestParam(required = false) String nome,
+            @RequestParam(required = false) String busca,
             @RequestParam(required = false) Boolean ativo,
             @PageableDefault(size = 20, sort = "nome", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(clienteService.listar(nome, ativo, pageable));
+        return ResponseEntity.ok(clienteService.listar(nome, busca, ativo, pageable));
+    }
+
+    /**
+     * Antes de /{id} para "possiveis-duplicados" nao ser lido como id. So avisa: o
+     * cadastro de homonimo no mesmo telefone continua permitido.
+     */
+    @GetMapping("/possiveis-duplicados")
+    @Operation(summary = "Clientes com o mesmo nome e telefone, para avisar antes de salvar",
+            description = "Nome comparado sem diferenciar maiúsculas; telefone só com dígitos. "
+                    + "ignorarId exclui o próprio cliente na edição. Lista vazia = nenhum parecido.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Clientes parecidos (possivelmente nenhum)"),
+            @ApiResponse(responseCode = "400", description = "nome ou telefone ausente")
+    })
+    public ResponseEntity<List<ClienteResponse>> buscarPossiveisDuplicados(
+            @RequestParam String nome,
+            @RequestParam String telefone,
+            @RequestParam(required = false) Long ignorarId) {
+        return ResponseEntity.ok(clienteService.buscarPossiveisDuplicados(nome, telefone, ignorarId));
     }
 
     @GetMapping("/{id}")

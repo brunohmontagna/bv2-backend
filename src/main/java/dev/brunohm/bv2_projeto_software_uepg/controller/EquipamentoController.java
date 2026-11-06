@@ -57,13 +57,15 @@ public class EquipamentoController {
     }
 
     @GetMapping
-    @Operation(summary = "Lista equipamentos de forma paginada, com filtro por cliente, marca e nome")
+    @Operation(summary = "Lista equipamentos de forma paginada, com filtro por cliente, marca, nome e busca livre",
+            description = "busca casa com parte do nome do equipamento, da marca ou do cliente.")
     public ResponseEntity<PaginaResponse<EquipamentoResponse>> listar(
             @RequestParam(required = false) Long clienteId,
             @RequestParam(required = false) Long marcaId,
             @RequestParam(required = false) String nome,
+            @RequestParam(required = false) String busca,
             @PageableDefault(size = 20, sort = "nome", direction = Sort.Direction.ASC) Pageable pageable) {
-        return ResponseEntity.ok(equipamentoService.listar(clienteId, marcaId, nome, pageable));
+        return ResponseEntity.ok(equipamentoService.listar(clienteId, marcaId, nome, busca, pageable));
     }
 
     @GetMapping("/{id}")

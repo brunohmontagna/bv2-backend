@@ -1,7 +1,5 @@
 package dev.brunohm.bv2_projeto_software_uepg.service;
 
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import dev.brunohm.bv2_projeto_software_uepg.domain.entity.Usuario;
 import dev.brunohm.bv2_projeto_software_uepg.domain.enums.RoleUsuario;
 import dev.brunohm.bv2_projeto_software_uepg.dto.PaginaResponse;
-import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.AlteracaoSenhaRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioAtualizacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioCriacaoRequest;
 import dev.brunohm.bv2_projeto_software_uepg.dto.usuario.UsuarioResponse;
@@ -82,8 +79,9 @@ public class UsuarioService {
         return UsuarioResponse.fromEntity(usuario);
     }
 
-    public PaginaResponse<UsuarioResponse> listar(String nome, Boolean ativo, Pageable pageable) {
-        Page<Usuario> pagina = usuarioRepository.findAll(filtrar(nome, ativo), pageable);
+    public PaginaResponse<UsuarioResponse> listar(String nome, String busca, Boolean ativo,
+            Pageable pageable) {
+        Page<Usuario> pagina = usuarioRepository.findAll(filtrar(nome, busca, ativo), pageable);
         return PaginaResponse.de(pagina, UsuarioResponse::fromEntity);
     }
 
@@ -171,41 +169,6 @@ public class UsuarioService {
         return usuarioRepository.save(usuario);
     }
 
-    /**
-     * Troca a senha do proprio usuario, exigindo a atual como prova de posse.
-     *
-     * <p>
-     * Este e o <b>unico</b> caminho autenticado para trocar a senha: o PUT deixou de
-     * aceitar o campo justamente porque nao pedia a senha antiga — um token roubado
-     * bastava para tomar a conta.
-     *
-     * <p>
-     * Os tres 422 sao deliberados. Senha atual errada nao pode ser 401: o token e
-     * valido e o usuario <i>esta</i> autenticado, e interceptadores de front costumam
-     * deslogar em qualquer 401 — um erro de digitacao expulsaria o usuario da sessao.
-     */
-    @Transactional
-    public void alterarSenhaAutenticado(AlteracaoSenhaRequest request) {
-        Usuario usuario = usuarioAutenticado();
-
-        if (!passwordEncoder.matches(request.senhaAtual(), usuario.getSenha())) {
-            throw new RegraDeNegocioException("A senha atual está incorreta.");
-        }
-
-        if (!request.senhaNova().equals(request.senhaNovaConfirmacao())) {
-            throw new RegraDeNegocioException("A nova senha e a confirmação não conferem.");
-        }
-
-        if (passwordEncoder.matches(request.senhaNova(), usuario.getSenha())) {
-            throw new RegraDeNegocioException("A nova senha deve ser diferente da atual.");
-        }
-
-        usuario.setSenha(passwordEncoder.encode(request.senhaNova()));
-        // Truncado a segundos para casar com o iat do JWT. Ver Usuario.senhaAlteradaEm.
-        usuario.setSenhaAlteradaEm(LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
-        usuarioRepository.save(usuario);
-    }
-
     private Usuario usuarioAutenticado() {
         return buscarEntidade(autenticacaoAtual.usuario().getId());
     }
@@ -215,11 +178,17 @@ public class UsuarioService {
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Usuário", id));
     }
 
-    private Specification<Usuario> filtrar(String nome, Boolean ativo) {
+    /* busca e o campo livre da tela: parte do nome ou do e-mail. */
+    private Specification<Usuario> filtrar(String nome, String busca, Boolean ativo) {
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
             if (nome != null && !nome.isBlank()) {
                 predicados.add(cb.like(cb.lower(root.get("nome")), "%" + nome.toLowerCase() + "%"));
+            }
+            if (busca != null && !busca.isBlank()) {
+                predicados.add(cb.or(
+                        BuscaTexto.contem(cb, root.get("nome"), busca),
+                        BuscaTexto.contem(cb, root.get("email"), busca)));
             }
             if (ativo != null) {
                 predicados.add(cb.equal(root.get("ativo"), ativo));

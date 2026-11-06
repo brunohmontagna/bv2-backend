@@ -67,9 +67,10 @@ public class EquipamentoService {
         return EquipamentoResponse.fromEntity(equipamento);
     }
 
-    public PaginaResponse<EquipamentoResponse> listar(Long clienteId, Long marcaId, String nome, Pageable pageable) {
+    public PaginaResponse<EquipamentoResponse> listar(Long clienteId, Long marcaId, String nome,
+            String busca, Pageable pageable) {
         Page<Equipamento> pagina = equipamentoRepository
-                .findAll(filtrar(clienteId, marcaId, nome), pageable);
+                .findAll(filtrar(clienteId, marcaId, nome, busca), pageable);
         return PaginaResponse.de(pagina, EquipamentoResponse::fromEntity);
     }
 
@@ -131,7 +132,9 @@ public class EquipamentoService {
                 .orElseThrow(() -> RecursoNaoEncontradoException.de("Cliente", id));
     }
 
-    private Specification<Equipamento> filtrar(Long clienteId, Long marcaId, String nome) {
+    /* busca e o campo livre da tela: parte do nome do equipamento, da marca ou do cliente. */
+    private Specification<Equipamento> filtrar(Long clienteId, Long marcaId, String nome,
+            String busca) {
         Long usuarioId = contaAtual.id();
         return (root, query, cb) -> {
             List<Predicate> predicados = new ArrayList<>();
@@ -144,6 +147,12 @@ public class EquipamentoService {
             }
             if (nome != null && !nome.isBlank()) {
                 predicados.add(cb.like(cb.lower(root.get("nome")), "%" + nome.toLowerCase() + "%"));
+            }
+            if (busca != null && !busca.isBlank()) {
+                predicados.add(cb.or(
+                        BuscaTexto.contem(cb, root.get("nome"), busca),
+                        BuscaTexto.contem(cb, root.get("marca").get("nome"), busca),
+                        BuscaTexto.contem(cb, root.get("cliente").get("nome"), busca)));
             }
             return cb.and(predicados.toArray(new Predicate[0]));
         };

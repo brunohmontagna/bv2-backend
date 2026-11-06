@@ -12,8 +12,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Envio de e-mail transacional: o link de recuperacao de senha e o de
- * confirmacao de troca de e-mail.
+ * Envio de e-mail transacional: o link de recuperacao de senha e os de
+ * confirmacao de troca de e-mail e de senha.
  *
  * <p>
  * <b>Nunca lanca</b>, pelo mesmo motivo do N8nWebhookClient: o endpoint que chama
@@ -60,6 +60,16 @@ public class EmailService {
             long expiracaoMinutos) {
         enviar(destinatario, "Confirme seu novo e-mail - BV2",
                 corpoConfirmacaoEmail(nome, link, expiracaoMinutos), "confirmação de e-mail");
+    }
+
+    /**
+     * Envia o link de confirmacao da troca de senha ao endereco <b>atual</b>: quem
+     * prova a posse aqui e o dono da caixa postal, nao quem esta com a sessao aberta.
+     */
+    public void enviarConfirmacaoSenha(String destinatario, String nome, String link,
+            long expiracaoMinutos) {
+        enviar(destinatario, "Confirme a troca de senha - BV2",
+                corpoConfirmacaoSenha(nome, link, expiracaoMinutos), "confirmação de senha");
     }
 
     /**
@@ -149,6 +159,37 @@ public class EmailService {
 
                   <p>Se você não pediu esta alteração, ignore este e-mail: nenhuma conta
                      será alterada.</p>
+
+                  <p style="margin-top: 24px; color: #666; font-size: 13px;">
+                    Atenciosamente, BV2
+                  </p>
+                </div>
+                """.formatted(nome, link, link, expiracaoMinutos);
+    }
+
+    /*
+     * Diferente dos outros dois, este e-mail pode ser o unico sinal de que alguem
+     * esta usando a conta: o pedido exige a senha atual, entao se o dono nao pediu,
+     * a senha vazou. Por isso o texto nao para no "ignore" e manda redefinir.
+     */
+    private String corpoConfirmacaoSenha(String nome, String link, long expiracaoMinutos) {
+        return """
+                <div style="font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #1a1a1a; line-height: 1.6;">
+                  <p>Olá, %s!</p>
+
+                  <p>Recebemos um pedido para trocar a senha da sua conta no BV2. A nova
+                     senha só passa a valer depois que você confirmar pelo endereço abaixo:</p>
+
+                  <p><a href="%s" style="color: #1d4ed8;">%s</a></p>
+
+                  <p>O link vale por %d minutos e pode ser usado uma única vez. Depois da
+                     confirmação, todas as sessões abertas serão encerradas e você entrará
+                     com a nova senha.</p>
+
+                  <p><strong>Se você não pediu esta troca</strong>, não clique no link: sua
+                     senha atual continua valendo. Mas o pedido só é aceito com a senha
+                     atual, então alguém pode conhecê-la — use a opção "Esqueci minha
+                     senha" na tela de login para definir uma nova.</p>
 
                   <p style="margin-top: 24px; color: #666; font-size: 13px;">
                     Atenciosamente, BV2

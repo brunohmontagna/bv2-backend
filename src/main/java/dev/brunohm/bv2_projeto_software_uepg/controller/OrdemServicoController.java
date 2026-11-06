@@ -78,7 +78,9 @@ public class OrdemServicoController {
     }
 
     @GetMapping
-    @Operation(summary = "Lista ordens de serviço de forma paginada, com filtro por cliente, status e período de entrada")
+    @Operation(summary = "Lista ordens de serviço de forma paginada, com filtro por cliente, status, período de entrada e busca livre",
+            description = "status aceita mais de um valor (?status=EM_ANDAMENTO&status=CONCLUIDA). "
+                    + "busca casa com parte do nome do cliente ou, se for número, com o número da OS.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Página de ordens de serviço"),
             @ApiResponse(responseCode = "400", description = "Parâmetro inválido (status fora do enum ou data mal formatada)"),
@@ -86,11 +88,13 @@ public class OrdemServicoController {
     })
     public ResponseEntity<PaginaResponse<OrdemServicoResponse>> listar(
             @RequestParam(required = false) Long clienteId,
-            @RequestParam(required = false) StatusOs status,
+            @RequestParam(required = false) List<StatusOs> status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim,
+            @RequestParam(required = false) String busca,
             @PageableDefault(size = 20, sort = "dataEntrada", direction = Sort.Direction.DESC) Pageable pageable) {
-        return ResponseEntity.ok(ordemServicoService.listar(clienteId, status, dataInicio, dataFim, pageable));
+        return ResponseEntity.ok(
+                ordemServicoService.listar(clienteId, status, dataInicio, dataFim, busca, pageable));
     }
 
     @GetMapping("/{id}")

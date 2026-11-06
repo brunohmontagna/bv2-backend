@@ -1,7 +1,7 @@
 {
 	"info": {
 		"name": "API REST BV2 | Projeto UEPG",
-		"description": "# API REST BV2 - Sistema de Ordens de Servico\n\nProjeto de Engenharia de Software - UEPG. Cliente real: **M2 Equipamentos** (Ponta Grossa/PR), assistencia tecnica de maquinas eletricas e mecanicas. A API controla clientes, equipamentos, catalogo de servicos, ordens de servico (OS) com itens, notificacoes automaticas por WhatsApp (via n8n), painel de indicadores e o cadastro de usuarios.\n\n**Spring Boot 4 | Java 21 | PostgreSQL + Flyway | Spring Security + JWT (java-jwt / Auth0) | springdoc-openapi**\n\n- **Base URL local:** `{{baseUrl}}` = `http://localhost:8080`\n- **Swagger UI:** `{{baseUrl}}/swagger-ui.html` - **OpenAPI:** `{{baseUrl}}/v3/api-docs` (publicos)\n- **Formato:** JSON (`Content-Type: application/json`) em todas as rotas; erros em `application/problem+json`\n\n---\n\n## Autenticacao\n\nJWT stateless no header `Authorization: Bearer <token>`, obtido em `POST /auth/login`. A collection aplica `{{tokenMaster}}` por padrao; requests especificos sobrescrevem com `{{tokenAdmin}}`, `{{tokenSenha}}`, `{{tokenEmail}}` ou *No Auth*.\n\n- Validade: `JWT_EXPIRACAO_MINUTOS` (padrao **120 min**); `expiraEm` vem na resposta do login.\n- Claims: `sub` = e-mail, `id`, `role`.\n- O token deixa de valer (401) quando: expira, o usuario e desativado, a senha e trocada/redefinida (tokens com `iat` anterior sao recusados) ou o e-mail e trocado (o subject muda).\n- **Rotas publicas:** `POST /auth/login`, `POST /auth/senha/esqueci`, `POST /auth/senha/redefinir`, `POST /auth/email/confirmar`, Swagger/OpenAPI. Todo o resto exige token.\n\n## Papeis\n\nQuem faz **login** e a equipe desenvolvedora (**MASTER**) e a M2 (**ADMIN**). Os dois operam o sistema por igual; a **unica** diferenca e que so o MASTER gerencia `/usuarios` (exceto `/usuarios/eu*`, aberto a qualquer autenticado).\n\n**Cliente nao e usuario.** `/clientes` sao os clientes da M2 - quem leva o equipamento. Eles **nao fazem login**.\n\n| Papel | /usuarios (cadastro) | /usuarios/eu* | Demais recursos |\n|---|---|---|---|\n| **MASTER** | sim | sim | tudo |\n| **ADMIN** | nao (403) | sim | tudo |\n\n- Usuario criado pela API nasce sempre **ADMIN**; MASTER e unico, semeado na migration e nao pode ser desativado.\n- Nao existe exclusao de usuario: desativar revoga o acesso na hora e preserva o historico.\n\n---\n\n## Convencoes\n\n**Paginacao.** Listagens aceitam `page` (base 0), `size` (padrao 20) e `sort=campo,asc|desc` e respondem o envelope proprio:\n\n```json\n{\n  \"conteudo\": [ ... ],\n  \"pagina\": 0,\n  \"tamanho\": 20,\n  \"totalElementos\": 42,\n  \"totalPaginas\": 3,\n  \"primeira\": true,\n  \"ultima\": false\n}\n```\n\nExcecoes sem paginacao: `GET /ordens-servico/{id}/itens`, `GET /notificacoes/templates`, `GET /notificacoes/placeholders`.\n\n**Criacao.** `POST` de recurso responde `201 Created` com o recurso no corpo e header `Location`.\n\n**Situacao.** Clientes, servicos e usuarios nao sao editados via `ativo` no corpo: usam `PATCH /{id}/ativar` e `PATCH /{id}/desativar`, ambos idempotentes. Transicoes de OS (`/concluir`, `/entregar`, `/cancelar`) tambem sao idempotentes.\n\n**Tipos.**\n| Tipo | Formato | Exemplo |\n|---|---|---|\n| Data (`LocalDate`) | `AAAA-MM-DD` | `2026-09-12` |\n| Data/hora (`LocalDateTime`) | ISO-8601 sem fuso (horario do servidor) | `2026-09-12T14:30:00.123` |\n| Instante (`Instant`) | ISO-8601 UTC | `2026-09-12T16:30:00Z` |\n| Dinheiro (`BigDecimal`) | numero JSON, ate 7 inteiros e 2 decimais, >= 0 | `1234.56` |\n| Telefone | somente digitos, 10 a 13 | `42988886690` |\n| Nomes | texto, max 50 | - |\n| Observacoes / descricoes | texto, max 500 | - |\n| Senha | 8 a 72 caracteres (limite do BCrypt) | - |\n\n**Enums.**\n| Enum | Valores |\n|---|---|\n| `StatusOs` | `EM_ANDAMENTO`, `CONCLUIDA`, `ENTREGUE`, `CANCELADA` |\n| `StatusNotificacao` | `PENDENTE`, `ENVIADO`, `FALHOU` |\n| `RoleUsuario` | `MASTER`, `ADMIN` |\n\n---\n\n## Regras de dominio\n\n**Ciclo de vida da OS**\n\n```\nEM_ANDAMENTO --concluir--> CONCLUIDA --entregar--> ENTREGUE (final)\n     |                         |\n     +--------cancelar---------+-----> CANCELADA (final)\n```\n\n- Nasce `EM_ANDAMENTO`, com ao menos um item (equipamento + servico). `dataConcluida`/`dataEntregue` sao gravadas pelas transicoes.\n- Entregar exige CONCLUIDA; ENTREGUE e CANCELADA nao mudam mais (422).\n- Observacao, itens e valor total so mudam enquanto `EM_ANDAMENTO` (422).\n- Excluir OS exige que ela esteja sem itens (422) e sem notificacoes (409).\n\n**Itens e valor total**\n- Equipamento do item precisa ser do mesmo cliente da OS; servico precisa estar ativo; o par equipamento + servico e unico por OS.\n- `valorTotal` automatico = soma dos servicos dos itens, recalculado a cada item. Enviar `valorTotal` (na criacao ou em `PATCH /valor-total`) congela o total com `valorTotalManual=true`; enviar `null` volta ao automatico.\n\n**Notificacoes WhatsApp**\n- Cada transicao efetiva de OS para `CONCLUIDA`, `ENTREGUE` ou `CANCELADA` gera uma notificacao, se o template daquele status estiver `ativo`.\n- O texto e renderizado com placeholders (`{cliente}`, `{os}`, `{valor}`, `{status}`, `{dataEntrada}`, `{dataConcluida}`, `{dataEntregue}`) e enviado ao webhook do n8n apos o commit; falha no n8n nao afeta a transicao e fica registrada como `FALHOU`.\n- O log (`GET /notificacoes`) guarda o texto exato enviado; editar o template nao reescreve o historico.\n\n**Credenciais**\n- Senha: `PUT /usuarios/eu/senha` (exige a atual) ou recuperacao por e-mail (`/auth/senha/esqueci` -> `/auth/senha/redefinir`).\n- E-mail: `PUT /usuarios/eu/email` (exige a senha) -> link no endereco novo -> `POST /auth/email/confirmar`.\n- Tokens de e-mail sao de uso unico, expiram (padrao 30 min) e erros de token sao sempre a mesma mensagem, para nao vazar informacao.\n\n---\n\n## Padrao de erros - ProblemDetail (RFC 7807)\n\nToda falha (inclusive 401/403 da cadeia de seguranca) sai no mesmo formato:\n\n```json\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados inválidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validação.\",\n  \"instance\": \"/clientes\",\n  \"erros\": { \"telefone\": \"O telefone deve conter apenas dígitos (10 a 13)\" },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}\n```\n\n`erros` (campo -> mensagem) aparece em falhas de Bean Validation (400) e nos 422 de regra presa a um campo (ex.: `senhaNova` igual a atual na redefinicao).\n\n| Status | title | Quando |\n|---|---|---|\n| **400** | Dados invalidos / Corpo da requisicao invalido / Parametro invalido | Bean Validation, JSON malformado, enum ou data invalida em query/path |\n| **401** | Credenciais invalidas / Nao autenticado | login incorreto; sem token, token invalido/expirado/revogado, usuario desativado |\n| **403** | Acesso negado | ADMIN no cadastro de usuarios |\n| **404** | Recurso nao encontrado | id inexistente; template de status que nao notifica |\n| **409** | Recurso duplicado / Conflito de integridade | nome/e-mail/item duplicado; exclusao barrada por FK `ON DELETE RESTRICT` |\n| **422** | Regra de negocio violada | cliente inativo, servico inativo, transicao de status invalida, OS fora de EM_ANDAMENTO, periodo invertido, senha/confirmacao/token invalidos, desativar o MASTER |\n| **500** | Erro interno | falha inesperada (logada no servidor) |\n\n---\n\n## Como rodar a collection\n\n1. Suba a aplicacao (`./mvnw spring-boot:run`) na porta 8080, com o banco migrado.\n2. Preencha `{{masterSenha}}` e rode **1. Autenticacao > Login (MASTER)** - o token vai para `{{tokenMaster}}`.\n3. Rode **9. Usuarios > Criar usuario ADMIN**, preencha `{{adminEmail}}`/`{{adminSenha}}` de um ADMIN existente e rode **Login (ADMIN)** (salva `{{tokenAdmin}}`) para os cenarios 403 e `/usuarios/eu`.\n4. As pastas 2 a 9 e 11 criam e limpam as proprias fixtures (ids salvos em variaveis da collection).\n5. **10. Painel** so le: rode depois das outras pastas ou com o banco ja povoado.\n6. **12. Senha** e **13. Email** tem um passo manual: cole em `{{tokenRecuperacao}}` / `{{tokenConfirmacaoEmail}}` o token recebido no link do e-mail antes dos requests marcados *COLE O TOKEN*.\n\nCada request traz na descricao o cenario que testa. O request **de referencia** de cada endpoint traz tambem a documentacao completa (parametros, corpo, regras, status) e **exemplos de resposta salvos**.\n\n---\n\n## Indice de endpoints (57)\n\n| Metodo | Rota | Acesso | O que faz | Pasta |\n|---|---|---|---|---|\n| `POST` | `/auth/login` | Publica | Autentica um usuario (MASTER ou ADMIN) e devolve o JWT. | 1. Autenticacao |\n| `POST` | `/auth/senha/esqueci` | Publica | Envia por e-mail um link para redefinir a senha. | 12. Senha |\n| `POST` | `/auth/senha/redefinir` | Publica | Redefine a senha usando o token recebido por e-mail. Nao pede a senha atual: o token prova a posse da conta. | 12. Senha |\n| `POST` | `/auth/email/confirmar` | Publica | Confirma a troca de e-mail pedida em `PUT /usuarios/eu/email`, usando o token enviado ao endereco NOVO. | 13. Email |\n| `GET` | `/usuarios/eu` | Autenticado | Devolve o usuario autenticado (o id vem do token). | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/eu` | Autenticado | Atualiza o nome do proprio usuario. | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/eu/senha` | Autenticado | Troca a senha do proprio usuario, exigindo a senha atual. | 12. Senha |\n| `PUT` | `/usuarios/eu/email` | Autenticado | Pede a troca do proprio e-mail. Nada muda ainda: um link vai para o endereco NOVO. | 13. Email |\n| `POST` | `/usuarios` | MASTER | Cadastra um usuario do sistema. Sempre nasce com papel ADMIN. | 9. Usuarios (MASTER) |\n| `GET` | `/usuarios` | MASTER | Lista os usuarios do sistema. | 9. Usuarios (MASTER) |\n| `GET` | `/usuarios/{id}` | MASTER | Busca um usuario pelo id. | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/{id}` | MASTER | Atualiza o nome de um usuario. | 9. Usuarios (MASTER) |\n| `PATCH` | `/usuarios/{id}/ativar` | MASTER | Reativa o usuario, devolvendo o acesso. Idempotente. | 9. Usuarios (MASTER) |\n| `PATCH` | `/usuarios/{id}/desativar` | MASTER | Revoga o acesso do usuario na hora, inclusive tokens ja emitidos. Idempotente. Nao ha exclusao definitiva de usuarios. | 9. Usuarios (MASTER) |\n| `POST` | `/clientes` | Autenticado | Cadastra um cliente da M2 (quem leva o equipamento). Cliente nao faz login. | 2. Clientes (CRUD) |\n| `GET` | `/clientes` | Autenticado | Lista clientes paginados, com filtros opcionais. | 2. Clientes (CRUD) |\n| `GET` | `/clientes/{id}` | Autenticado | Busca um cliente pelo id. | 2. Clientes (CRUD) |\n| `PUT` | `/clientes/{id}` | Autenticado | Atualiza nome e telefone. A situacao muda so pelos PATCH `/ativar` e `/desativar`. | 2. Clientes (CRUD) |\n| `PATCH` | `/clientes/{id}/desativar` | Autenticado | Inativa o cliente sem apagar o historico. Idempotente. | 2. Clientes (CRUD) |\n| `PATCH` | `/clientes/{id}/ativar` | Autenticado | Reativa o cliente. Idempotente. | 2. Clientes (CRUD) |\n| `DELETE` | `/clientes/{id}` | Autenticado | Remove definitivamente o cliente. Para o caso comum, prefira desativar. | 2. Clientes (CRUD) |\n| `POST` | `/marcas` | Autenticado | Cadastra uma marca de equipamento. | 4. Marcas (CRUD) |\n| `GET` | `/marcas` | Autenticado | Lista marcas paginadas. | 4. Marcas (CRUD) |\n| `GET` | `/marcas/{id}` | Autenticado | Busca uma marca pelo id. | 4. Marcas (CRUD) |\n| `PUT` | `/marcas/{id}` | Autenticado | Atualiza o nome da marca. | 4. Marcas (CRUD) |\n| `DELETE` | `/marcas/{id}` | Autenticado | Remove a marca. | 4. Marcas (CRUD) |\n| `POST` | `/servicos` | Autenticado | Cadastra um servico do catalogo da M2. | 5. Servicos (CRUD) |\n| `GET` | `/servicos` | Autenticado | Lista servicos paginados. | 5. Servicos (CRUD) |\n| `GET` | `/servicos/{id}` | Autenticado | Busca um servico pelo id. | 5. Servicos (CRUD) |\n| `PUT` | `/servicos/{id}` | Autenticado | Atualiza nome, descricao e valor. | 5. Servicos (CRUD) |\n| `PATCH` | `/servicos/{id}/desativar` | Autenticado | Inativa o servico sem apagar o historico. Idempotente. | 5. Servicos (CRUD) |\n| `PATCH` | `/servicos/{id}/ativar` | Autenticado | Reativa o servico. Idempotente. | 5. Servicos (CRUD) |\n| `DELETE` | `/servicos/{id}` | Autenticado | Remove definitivamente o servico. | 5. Servicos (CRUD) |\n| `POST` | `/equipamentos` | Autenticado | Cadastra um equipamento de um cliente da M2. | 6. Equipamentos (CRUD) |\n| `GET` | `/equipamentos` | Autenticado | Lista equipamentos paginados. | 6. Equipamentos (CRUD) |\n| `GET` | `/equipamentos/{id}` | Autenticado | Busca um equipamento pelo id. | 6. Equipamentos (CRUD) |\n| `PUT` | `/equipamentos/{id}` | Autenticado | Atualiza nome e marca. O cliente dono NAO entra no corpo: e imutavel. | 6. Equipamentos (CRUD) |\n| `DELETE` | `/equipamentos/{id}` | Autenticado | Remove definitivamente o equipamento. | 6. Equipamentos (CRUD) |\n| `POST` | `/ordens-servico` | Autenticado | Abre uma OS para um cliente da M2, ja com os itens (equipamento + servico). | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico` | Autenticado | Lista OS paginadas. | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico/{id}` | Autenticado | Busca uma OS pelo id (sem os itens; use `/itens`). | 7. OS (CRUD + Transição Status) |\n| `PUT` | `/ordens-servico/{id}` | Autenticado | Atualiza a observacao. Cliente, status e datas nao mudam por aqui. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/concluir` | Autenticado | Marca a OS como CONCLUIDA e grava `dataConcluida` = hoje. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/entregar` | Autenticado | Marca a OS como ENTREGUE e grava `dataEntregue` = hoje. Exige CONCLUIDA antes. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/cancelar` | Autenticado | Cancela a OS. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/valor-total` | Autenticado | Fixa o valor total a mao (desconto, preco fechado) ou volta ao calculo automatico. | 7. OS (CRUD + Transição Status) |\n| `DELETE` | `/ordens-servico/{id}` | Autenticado | Remove definitivamente a OS. | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico/{id}/itens` | Autenticado | Lista os itens da OS. Sem paginacao. | 8. Itens OS |\n| `POST` | `/ordens-servico/{id}/itens` | Autenticado | Adiciona um item (equipamento + servico) e recalcula o `valorTotal` (se automatico). | 8. Itens OS |\n| `PUT` | `/ordens-servico/{id}/itens/{itemId}` | Autenticado | Atualiza a observacao do item. Equipamento e servico sao a chave do item: para troca-los, remova e adicione outro. | 8. Itens OS |\n| `DELETE` | `/ordens-servico/{id}/itens/{itemId}` | Autenticado | Remove o item e recalcula o `valorTotal` (se automatico). | 8. Itens OS |\n| `GET` | `/painel` | Autenticado | Indicadores consolidados da operacao (dashboard). So leitura. | 10. Painel |\n| `GET` | `/notificacoes` | Autenticado | Log paginado dos envios de WhatsApp. So leitura: quem escreve e o sistema. | 11. Notificações |\n| `GET` | `/notificacoes/{id}` | Autenticado | Busca um envio, com o texto exato enviado ao cliente (template ja renderizado). | 11. Notificações |\n| `GET` | `/notificacoes/templates` | Autenticado | Lista os templates configuraveis: um por status que notifica (`CONCLUIDA`, `ENTREGUE`, `CANCELADA`). | 11. Notificações |\n| `GET` | `/notificacoes/placeholders` | Autenticado | Lista os placeholders aceitos no conteudo do template, com descricao e exemplo. | 11. Notificações |\n| `PUT` | `/notificacoes/templates/{statusOs}` | Autenticado | Define o texto e liga/desliga a notificacao automatica de um status. | 11. Notificações |\n",
+		"description": "# API REST BV2 - Sistema de Ordens de Servico\n\nProjeto de Engenharia de Software - UEPG. Cliente real: **M2 Equipamentos** (Ponta Grossa/PR), assistencia tecnica de maquinas eletricas e mecanicas. A API controla clientes, equipamentos, catalogo de servicos, ordens de servico (OS) com itens, notificacoes automaticas por WhatsApp (via n8n), painel de indicadores e o cadastro de usuarios.\n\n**Spring Boot 4 | Java 21 | PostgreSQL + Flyway | Spring Security + JWT (java-jwt / Auth0) | springdoc-openapi**\n\n- **Base URL local:** `{{baseUrl}}` = `http://localhost:8080`\n- **Swagger UI:** `{{baseUrl}}/swagger-ui.html` - **OpenAPI:** `{{baseUrl}}/v3/api-docs` (publicos)\n- **Formato:** JSON (`Content-Type: application/json`) em todas as rotas; erros em `application/problem+json`\n\n---\n\n## Autenticacao\n\nJWT stateless no header `Authorization: Bearer <token>`, obtido em `POST /auth/login`. A collection aplica `{{tokenMaster}}` por padrao; requests especificos sobrescrevem com `{{tokenAdmin}}`, `{{tokenSenha}}`, `{{tokenEmail}}` ou *No Auth*.\n\n- Validade: `JWT_EXPIRACAO_MINUTOS` (padrao **120 min**); `expiraEm` vem na resposta do login.\n- Claims: `sub` = e-mail, `id`, `role`.\n- O token deixa de valer (401) quando: expira, o usuario e desativado, a senha e trocada/redefinida (tokens com `iat` anterior sao recusados) ou o e-mail e trocado (o subject muda).\n- **Rotas publicas:** `POST /auth/login`, `POST /auth/senha/esqueci`, `POST /auth/senha/redefinir`, `POST /auth/senha/confirmar`, `POST /auth/email/confirmar`, Swagger/OpenAPI. Todo o resto exige token.\n\n## Papeis\n\nQuem faz **login** e a equipe desenvolvedora (**MASTER**) e a M2 (**ADMIN**). Os dois operam o sistema por igual; a **unica** diferenca e que so o MASTER gerencia `/usuarios` (exceto `/usuarios/eu*`, aberto a qualquer autenticado).\n\n**Cliente nao e usuario.** `/clientes` sao os clientes da M2 - quem leva o equipamento. Eles **nao fazem login**.\n\n| Papel | /usuarios (cadastro) | /usuarios/eu* | Demais recursos |\n|---|---|---|---|\n| **MASTER** | sim | sim | tudo |\n| **ADMIN** | nao (403) | sim | tudo |\n\n- Usuario criado pela API nasce sempre **ADMIN**; MASTER e unico, semeado na migration e nao pode ser desativado.\n- Nao existe exclusao de usuario: desativar revoga o acesso na hora e preserva o historico.\n\n---\n\n## Convencoes\n\n**Paginacao.** Listagens aceitam `page` (base 0), `size` (padrao 20, **maximo 100**) e `sort=campo,asc|desc` e respondem o envelope proprio:\n\n```json\n{\n  \"conteudo\": [ ... ],\n  \"pagina\": 0,\n  \"tamanho\": 20,\n  \"totalElementos\": 42,\n  \"totalPaginas\": 3,\n  \"primeira\": true,\n  \"ultima\": false\n}\n```\n\nExcecoes sem paginacao: `GET /ordens-servico/{id}/itens`, `GET /notificacoes/templates`, `GET /notificacoes/placeholders`.\n\n**Busca livre.** Todas as listagens aceitam `busca` (ignora maiusculas e acentos): clientes por nome/telefone, servicos por nome/descricao, equipamentos por nome/marca/cliente, OS por cliente ou numero, notificacoes por cliente/texto/numero da OS, usuarios por nome/e-mail. Em `/ordens-servico`, `status` pode repetir; em `/notificacoes`, `dataInicio`/`dataFim` recortam a data do envio.\n\n**Criacao.** `POST` de recurso responde `201 Created` com o recurso no corpo e header `Location`.\n\n**Situacao.** Clientes, servicos e usuarios nao sao editados via `ativo` no corpo: usam `PATCH /{id}/ativar` e `PATCH /{id}/desativar`, ambos idempotentes. Transicoes de OS (`/concluir`, `/entregar`, `/cancelar`) tambem sao idempotentes.\n\n**Tipos.**\n| Tipo | Formato | Exemplo |\n|---|---|---|\n| Data (`LocalDate`) | `AAAA-MM-DD` | `2026-09-12` |\n| Data/hora (`LocalDateTime`) | ISO-8601 sem fuso (horario do servidor) | `2026-09-12T14:30:00.123` |\n| Instante (`Instant`) | ISO-8601 UTC | `2026-09-12T16:30:00Z` |\n| Dinheiro (`BigDecimal`) | numero JSON, ate 7 inteiros e 2 decimais, >= 0 | `1234.56` |\n| Telefone | somente digitos, 10 a 13 | `42988886690` |\n| Nomes | texto, max 50 | - |\n| Observacoes / descricoes | texto, max 500 | - |\n| Senha | 8 a 72 caracteres (limite do BCrypt) | - |\n\n**Enums.**\n| Enum | Valores |\n|---|---|\n| `StatusOs` | `EM_ANDAMENTO`, `CONCLUIDA`, `ENTREGUE`, `CANCELADA` |\n| `StatusNotificacao` | `PENDENTE`, `ENVIADO`, `FALHOU` |\n| `RoleUsuario` | `MASTER`, `ADMIN` |\n\n---\n\n## Regras de dominio\n\n**Ciclo de vida da OS**\n\n```\nEM_ANDAMENTO --concluir--> CONCLUIDA --entregar--> ENTREGUE (final)\n     |                         |\n     +--------cancelar---------+-----> CANCELADA (final)\n```\n\n- Nasce `EM_ANDAMENTO`, com ao menos um item (equipamento + servico). `dataConcluida`/`dataEntregue` sao gravadas pelas transicoes.\n- Entregar exige CONCLUIDA; ENTREGUE e CANCELADA nao mudam mais (422).\n- Observacao, itens e valor total so mudam enquanto `EM_ANDAMENTO` (422).\n- Excluir OS exige que ela esteja sem itens (422) e sem notificacoes (409).\n\n**Itens e valor total**\n- Equipamento do item precisa ser do mesmo cliente da OS; servico precisa estar ativo; o par equipamento + servico e unico por OS.\n- `valorTotal` automatico = soma dos servicos dos itens, recalculado a cada item. Enviar `valorTotal` (na criacao ou em `PATCH /valor-total`) congela o total com `valorTotalManual=true`; enviar `null` volta ao automatico.\n\n**Notificacoes WhatsApp**\n- Cada transicao efetiva de OS para `CONCLUIDA`, `ENTREGUE` ou `CANCELADA` gera uma notificacao, se o template daquele status estiver `ativo`.\n- O texto e renderizado com placeholders (`{cliente}`, `{os}`, `{valor}`, `{status}`, `{dataEntrada}`, `{dataConcluida}`, `{dataEntregue}`) e enviado ao webhook do n8n apos o commit; falha no n8n nao afeta a transicao e fica registrada como `FALHOU`.\n- O log (`GET /notificacoes`) guarda o texto exato enviado; editar o template nao reescreve o historico.\n\n**Credenciais**\n- Senha: `PUT /usuarios/eu/senha` (exige a atual) -> link no e-mail ATUAL -> `POST /auth/senha/confirmar`; ou recuperacao por e-mail (`/auth/senha/esqueci` -> `/auth/senha/redefinir`).\n- E-mail: `PUT /usuarios/eu/email` (exige a senha) -> link no endereco novo -> `POST /auth/email/confirmar`.\n- Tokens de e-mail sao de uso unico, expiram (padrao 30 min) e erros de token sao sempre a mesma mensagem, para nao vazar informacao.\n\n---\n\n## Padrao de erros - ProblemDetail (RFC 7807)\n\nToda falha (inclusive 401/403 da cadeia de seguranca) sai no mesmo formato:\n\n```json\n{\n  \"type\": \"about:blank\",\n  \"title\": \"Dados inválidos\",\n  \"status\": 400,\n  \"detail\": \"Um ou mais campos falharam na validação.\",\n  \"instance\": \"/clientes\",\n  \"erros\": { \"telefone\": \"O telefone deve conter apenas dígitos (10 a 13)\" },\n  \"timestamp\": \"2026-09-12T14:30:00.000Z\"\n}\n```\n\n`erros` (campo -> mensagem) aparece em falhas de Bean Validation (400) e nos 422 de regra presa a um campo (ex.: `senhaNova` igual a atual na redefinicao).\n\n| Status | title | Quando |\n|---|---|---|\n| **400** | Dados invalidos / Corpo da requisicao invalido / Parametro invalido | Bean Validation, JSON malformado, enum ou data invalida em query/path |\n| **401** | Credenciais invalidas / Nao autenticado | login incorreto; sem token, token invalido/expirado/revogado, usuario desativado |\n| **403** | Acesso negado | ADMIN no cadastro de usuarios |\n| **404** | Recurso nao encontrado | id inexistente; template de status que nao notifica |\n| **409** | Recurso duplicado / Conflito de integridade | nome/e-mail/item duplicado; exclusao barrada por FK `ON DELETE RESTRICT` |\n| **422** | Regra de negocio violada | cliente inativo, servico inativo, transicao de status invalida, OS fora de EM_ANDAMENTO, periodo invertido, senha/confirmacao/token invalidos, desativar o MASTER |\n| **500** | Erro interno | falha inesperada (logada no servidor) |\n\n---\n\n## Como rodar a collection\n\n1. Suba a aplicacao (`./mvnw spring-boot:run`) na porta 8080, com o banco migrado.\n2. Preencha `{{masterSenha}}` e rode **1. Autenticacao > Login (MASTER)** - o token vai para `{{tokenMaster}}`.\n3. Rode **9. Usuarios > Criar usuario ADMIN**, preencha `{{adminEmail}}`/`{{adminSenha}}` de um ADMIN existente e rode **Login (ADMIN)** (salva `{{tokenAdmin}}`) para os cenarios 403 e `/usuarios/eu`.\n4. As pastas 2 a 9 e 11 criam e limpam as proprias fixtures (ids salvos em variaveis da collection).\n5. **10. Painel** so le: rode depois das outras pastas ou com o banco ja povoado.\n6. **12. Senha** e **13. Email** tem passos manuais: cole em `{{tokenConfirmacaoSenha}}` / `{{tokenRecuperacao}}` / `{{tokenConfirmacaoEmail}}` o token recebido no link do e-mail antes dos requests marcados *COLE O TOKEN*.\n\nCada request traz na descricao o cenario que testa. O request **de referencia** de cada endpoint traz tambem a documentacao completa (parametros, corpo, regras, status) e **exemplos de resposta salvos**.\n\n---\n\n## Indice de endpoints (59)\n\n| Metodo | Rota | Acesso | O que faz | Pasta |\n|---|---|---|---|---|\n| `POST` | `/auth/login` | Publica | Autentica um usuario (MASTER ou ADMIN) e devolve o JWT. | 1. Autenticacao |\n| `POST` | `/auth/senha/esqueci` | Publica | Envia por e-mail um link para redefinir a senha. | 12. Senha |\n| `POST` | `/auth/senha/redefinir` | Publica | Redefine a senha usando o token recebido por e-mail. Nao pede a senha atual: o token prova a posse da conta. | 12. Senha |\n| `POST` | `/auth/senha/confirmar` | Publica | Confirma a troca de senha pedida em `PUT /usuarios/eu/senha`, usando o token enviado ao e-mail ATUAL. | 12. Senha |\n| `POST` | `/auth/email/confirmar` | Publica | Confirma a troca de e-mail pedida em `PUT /usuarios/eu/email`, usando o token enviado ao endereco NOVO. | 13. Email |\n| `GET` | `/usuarios/eu` | Autenticado | Devolve o usuario autenticado (o id vem do token). | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/eu` | Autenticado | Atualiza o nome do proprio usuario. | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/eu/senha` | Autenticado | Pede a troca da propria senha. Nada muda ainda: um link vai para o e-mail ATUAL. | 12. Senha |\n| `PUT` | `/usuarios/eu/email` | Autenticado | Pede a troca do proprio e-mail. Nada muda ainda: um link vai para o endereco NOVO. | 13. Email |\n| `POST` | `/usuarios` | MASTER | Cadastra um usuario do sistema. Sempre nasce com papel ADMIN. | 9. Usuarios (MASTER) |\n| `GET` | `/usuarios` | MASTER | Lista os usuarios do sistema. | 9. Usuarios (MASTER) |\n| `GET` | `/usuarios/{id}` | MASTER | Busca um usuario pelo id. | 9. Usuarios (MASTER) |\n| `PUT` | `/usuarios/{id}` | MASTER | Atualiza o nome de um usuario. | 9. Usuarios (MASTER) |\n| `PATCH` | `/usuarios/{id}/ativar` | MASTER | Reativa o usuario, devolvendo o acesso. Idempotente. | 9. Usuarios (MASTER) |\n| `PATCH` | `/usuarios/{id}/desativar` | MASTER | Revoga o acesso do usuario na hora, inclusive tokens ja emitidos. Idempotente. Nao ha exclusao definitiva de usuarios. | 9. Usuarios (MASTER) |\n| `POST` | `/clientes` | Autenticado | Cadastra um cliente da M2 (quem leva o equipamento). Cliente nao faz login. | 2. Clientes (CRUD) |\n| `GET` | `/clientes` | Autenticado | Lista clientes paginados, com filtros opcionais. | 2. Clientes (CRUD) |\n| `GET` | `/clientes/possiveis-duplicados` | Autenticado | Clientes com o mesmo nome e telefone, para avisar antes de salvar. | 2. Clientes (CRUD) |\n| `GET` | `/clientes/{id}` | Autenticado | Busca um cliente pelo id. | 2. Clientes (CRUD) |\n| `PUT` | `/clientes/{id}` | Autenticado | Atualiza nome e telefone. A situacao muda so pelos PATCH `/ativar` e `/desativar`. | 2. Clientes (CRUD) |\n| `PATCH` | `/clientes/{id}/desativar` | Autenticado | Inativa o cliente sem apagar o historico. Idempotente. | 2. Clientes (CRUD) |\n| `PATCH` | `/clientes/{id}/ativar` | Autenticado | Reativa o cliente. Idempotente. | 2. Clientes (CRUD) |\n| `DELETE` | `/clientes/{id}` | Autenticado | Remove definitivamente o cliente. Para o caso comum, prefira desativar. | 2. Clientes (CRUD) |\n| `POST` | `/marcas` | Autenticado | Cadastra uma marca de equipamento. | 4. Marcas (CRUD) |\n| `GET` | `/marcas` | Autenticado | Lista marcas paginadas. | 4. Marcas (CRUD) |\n| `GET` | `/marcas/{id}` | Autenticado | Busca uma marca pelo id. | 4. Marcas (CRUD) |\n| `PUT` | `/marcas/{id}` | Autenticado | Atualiza o nome da marca. | 4. Marcas (CRUD) |\n| `DELETE` | `/marcas/{id}` | Autenticado | Remove a marca. | 4. Marcas (CRUD) |\n| `POST` | `/servicos` | Autenticado | Cadastra um servico do catalogo da M2. | 5. Servicos (CRUD) |\n| `GET` | `/servicos` | Autenticado | Lista servicos paginados. | 5. Servicos (CRUD) |\n| `GET` | `/servicos/{id}` | Autenticado | Busca um servico pelo id. | 5. Servicos (CRUD) |\n| `PUT` | `/servicos/{id}` | Autenticado | Atualiza nome, descricao e valor. | 5. Servicos (CRUD) |\n| `PATCH` | `/servicos/{id}/desativar` | Autenticado | Inativa o servico sem apagar o historico. Idempotente. | 5. Servicos (CRUD) |\n| `PATCH` | `/servicos/{id}/ativar` | Autenticado | Reativa o servico. Idempotente. | 5. Servicos (CRUD) |\n| `DELETE` | `/servicos/{id}` | Autenticado | Remove definitivamente o servico. | 5. Servicos (CRUD) |\n| `POST` | `/equipamentos` | Autenticado | Cadastra um equipamento de um cliente da M2. | 6. Equipamentos (CRUD) |\n| `GET` | `/equipamentos` | Autenticado | Lista equipamentos paginados. | 6. Equipamentos (CRUD) |\n| `GET` | `/equipamentos/{id}` | Autenticado | Busca um equipamento pelo id. | 6. Equipamentos (CRUD) |\n| `PUT` | `/equipamentos/{id}` | Autenticado | Atualiza nome e marca. O cliente dono NAO entra no corpo: e imutavel. | 6. Equipamentos (CRUD) |\n| `DELETE` | `/equipamentos/{id}` | Autenticado | Remove definitivamente o equipamento. | 6. Equipamentos (CRUD) |\n| `POST` | `/ordens-servico` | Autenticado | Abre uma OS para um cliente da M2, ja com os itens (equipamento + servico). | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico` | Autenticado | Lista OS paginadas. | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico/{id}` | Autenticado | Busca uma OS pelo id (sem os itens; use `/itens`). | 7. OS (CRUD + Transição Status) |\n| `PUT` | `/ordens-servico/{id}` | Autenticado | Atualiza a observacao. Cliente, status e datas nao mudam por aqui. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/concluir` | Autenticado | Marca a OS como CONCLUIDA e grava `dataConcluida` = hoje. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/entregar` | Autenticado | Marca a OS como ENTREGUE e grava `dataEntregue` = hoje. Exige CONCLUIDA antes. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/cancelar` | Autenticado | Cancela a OS. | 7. OS (CRUD + Transição Status) |\n| `PATCH` | `/ordens-servico/{id}/valor-total` | Autenticado | Fixa o valor total a mao (desconto, preco fechado) ou volta ao calculo automatico. | 7. OS (CRUD + Transição Status) |\n| `DELETE` | `/ordens-servico/{id}` | Autenticado | Remove definitivamente a OS. | 7. OS (CRUD + Transição Status) |\n| `GET` | `/ordens-servico/{id}/itens` | Autenticado | Lista os itens da OS. Sem paginacao. | 8. Itens OS |\n| `POST` | `/ordens-servico/{id}/itens` | Autenticado | Adiciona um item (equipamento + servico) e recalcula o `valorTotal` (se automatico). | 8. Itens OS |\n| `PUT` | `/ordens-servico/{id}/itens/{itemId}` | Autenticado | Atualiza a observacao do item. Equipamento e servico sao a chave do item: para troca-los, remova e adicione outro. | 8. Itens OS |\n| `DELETE` | `/ordens-servico/{id}/itens/{itemId}` | Autenticado | Remove o item e recalcula o `valorTotal` (se automatico). | 8. Itens OS |\n| `GET` | `/painel` | Autenticado | Indicadores consolidados da operacao (dashboard). So leitura. | 10. Painel |\n| `GET` | `/notificacoes` | Autenticado | Log paginado dos envios de WhatsApp. So leitura: quem escreve e o sistema. | 11. Notificações |\n| `GET` | `/notificacoes/{id}` | Autenticado | Busca um envio, com o texto exato enviado ao cliente (template ja renderizado). | 11. Notificações |\n| `GET` | `/notificacoes/templates` | Autenticado | Lista os templates configuraveis: um por status que notifica (`CONCLUIDA`, `ENTREGUE`, `CANCELADA`). | 11. Notificações |\n| `GET` | `/notificacoes/placeholders` | Autenticado | Lista os placeholders aceitos no conteudo do template, com descricao e exemplo. | 11. Notificações |\n| `PUT` | `/notificacoes/templates/{statusOs}` | Autenticado | Define o texto e liga/desliga a notificacao automatica de um status. | 11. Notificações |\n",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		"_postman_id": "a795aca7-1a01-41f7-93db-c9fc32622a16"
 	},
@@ -490,7 +490,9 @@
 									"  pm.expect(b.ativo).to.be.true;",
 									"});",
 									"pm.collectionVariables.set('clienteId', b.id);",
-									"console.log('clienteId salvo:', b.id);"
+									"console.log('clienteId salvo:', b.id);",
+									"pm.collectionVariables.set('nomeClienteDuplicado', pm.response.json().nome);",
+									"pm.collectionVariables.set('telefoneClienteDuplicado', pm.response.json().telefone);"
 								]
 							}
 						}
@@ -647,6 +649,160 @@
 						}
 					],
 					"id": "8eb49c2b-0d3b-414c-adcd-93128296e8fd"
+				},
+				{
+					"name": "Busca livre (nome ou telefone)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/clientes?busca=joao&ativo=true&size=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"clientes"
+							],
+							"query": [
+								{
+									"key": "busca",
+									"value": "joao"
+								},
+								{
+									"key": "ativo",
+									"value": "true"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "`busca` casa com parte do **nome** ou, se tiver digitos, com parte do **telefone**. Ignora maiusculas e acentos: `joao` acha `João`. E o que a tela usa (com debounce) e o combobox de cliente da nova OS usa com `ativo=true&size=10`."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('envelope paginado', () => pm.expect(pm.response.json()).to.have.property('totalElementos'));"
+								]
+							}
+						}
+					],
+					"id": "9e552d2c-e37e-49de-85cf-a7d79d1ca374"
+				},
+				{
+					"name": "Teto de pagina (size=1000 vira 100)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/clientes?size=1000",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"clientes"
+							],
+							"query": [
+								{
+									"key": "size",
+									"value": "1000"
+								}
+							]
+						},
+						"description": "`spring.data.web.pageable.max-page-size=100`: pedir mais devolve no maximo 100 por pagina, para nenhuma tela puxar a base inteira de uma vez."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('tamanho limitado a 100', () => pm.expect(pm.response.json().tamanho).to.be.at.most(100));"
+								]
+							}
+						}
+					],
+					"id": "d6d19adb-82ce-4845-9ef3-a0302a0b658a"
+				},
+				{
+					"name": "Possiveis duplicados (nome + telefone)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/clientes/possiveis-duplicados?nome={{nomeClienteDuplicado}}&telefone={{telefoneClienteDuplicado}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"clientes",
+								"possiveis-duplicados"
+							],
+							"query": [
+								{
+									"key": "nome",
+									"value": "{{nomeClienteDuplicado}}"
+								},
+								{
+									"key": "telefone",
+									"value": "{{telefoneClienteDuplicado}}"
+								}
+							]
+						},
+						"description": "Clientes da conta com o **mesmo nome** (sem diferenciar maiusculas) **e o mesmo telefone**. Serve so para **avisar** antes de salvar: o cadastro de homonimo continua permitido (pai e filho no mesmo telefone existem). Lista vazia = nenhum parecido.\n\n---\n\n## Referencia: `GET /clientes/possiveis-duplicados`\n\n**Acesso:** Bearer JWT - qualquer usuario autenticado\n\n### Query\n\n| Param | Obrigatorio | Descricao |\n|---|---|---|\n| nome | sim | nome a conferir |\n| telefone | sim | so digitos |\n| ignorarId | nao | o proprio cliente, na edicao |\n\n### Resposta\n`200` com uma lista de `ClienteResponse` (sem paginacao).\n\n### Status possiveis\n\n| Status | Quando |\n|---|---|\n| 200 | Lista (possivelmente vazia) |\n| 400 | `nome` ou `telefone` ausente |\n| 401 | Token ausente ou invalido |"
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('lista com mesmo nome e telefone', () => {",
+									"    const nome = pm.collectionVariables.get('nomeClienteDuplicado').toLowerCase();",
+									"    pm.response.json().forEach((c) => {",
+									"        pm.expect(c.nome.toLowerCase()).to.eql(nome);",
+									"        pm.expect(c.telefone).to.eql(pm.collectionVariables.get('telefoneClienteDuplicado'));",
+									"    });",
+									"});"
+								]
+							}
+						}
+					],
+					"id": "12b56e3c-0c8e-48aa-a29d-7e6d3babd6a8"
 				},
 				{
 					"name": "Buscar por id",
@@ -2112,6 +2268,58 @@
 					"id": "963e98ee-19bb-45de-ba42-a30d6ffdbdf8"
 				},
 				{
+					"name": "Nome duplicado com outro valor (409)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/servicos",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"servicos"
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nome\": \"TROCA DE TELA\",\n  \"descricao\": \"Mesmo nome, outro preco\",\n  \"valor\": 999.00\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"description": "A unicidade do servico e **so o nome** (sem diferenciar maiusculas) dentro da conta — indice `uq_servicos_usuario_nome` (V14). Antes era `(nome, valor)`; dois servicos com o mesmo nome e precos diferentes confundiam quem lanca a OS."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+									"pm.test('mensagem cita o nome', () => pm.expect(pm.response.json().detail).to.include('TROCA DE TELA'));"
+								]
+							}
+						}
+					],
+					"id": "ccf38436-a6a8-4e68-bfc5-154756296a1f"
+				},
+				{
 					"name": "Listar servicos (paginado)",
 					"request": {
 						"method": "GET",
@@ -2274,6 +2482,54 @@
 						}
 					],
 					"id": "05f98756-fdab-44da-b7e5-a2bd8c7960dc"
+				},
+				{
+					"name": "Busca livre (nome ou descricao)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/servicos?busca=tela&ativo=true",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"servicos"
+							],
+							"query": [
+								{
+									"key": "busca",
+									"value": "tela"
+								},
+								{
+									"key": "ativo",
+									"value": "true"
+								}
+							]
+						},
+						"description": "`busca` casa com parte do **nome** ou da **descricao**, ignorando maiusculas e acentos."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"id": "8ba7226f-0510-4b06-8a84-53d7bb377bde"
 				},
 				{
 					"name": "Buscar servico por id",
@@ -3260,6 +3516,54 @@
 						}
 					],
 					"id": "1df811d8-3dfb-4a00-bd23-8ee2044b98a8"
+				},
+				{
+					"name": "Busca livre (equipamento, marca ou cliente)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/equipamentos?busca=makita&size=10",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"equipamentos"
+							],
+							"query": [
+								{
+									"key": "busca",
+									"value": "makita"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "`busca` casa com parte do nome do **equipamento**, da **marca** ou do **cliente**, ignorando maiusculas e acentos."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"id": "ec0ab459-e86f-411c-bf63-cb0f2c2dfcad"
 				},
 				{
 					"name": "Buscar equipamento por id",
@@ -4617,6 +4921,100 @@
 						}
 					],
 					"id": "91f06a80-84f7-4f79-bf51-08a0226390e9"
+				},
+				{
+					"name": "Listar em aberto (status repetido)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/ordens-servico?status=EM_ANDAMENTO&status=CONCLUIDA",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"ordens-servico"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "EM_ANDAMENTO"
+								},
+								{
+									"key": "status",
+									"value": "CONCLUIDA"
+								}
+							]
+						},
+						"description": "`status` aceita **mais de um valor**: repetir o param (`status=EM_ANDAMENTO&status=CONCLUIDA`) traz as OS que ainda estao na oficina. E o filtro padrao da tela de OS."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('so em andamento ou concluida', () => pm.response.json().conteudo.forEach((o) => pm.expect(['EM_ANDAMENTO','CONCLUIDA']).to.include(o.status)));"
+								]
+							}
+						}
+					],
+					"id": "31ce415b-33a2-4a57-b37b-6f9ca8506884"
+				},
+				{
+					"name": "Busca livre (cliente ou numero da OS)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/ordens-servico?busca={{ordemServicoId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"ordens-servico"
+							],
+							"query": [
+								{
+									"key": "busca",
+									"value": "{{ordemServicoId}}"
+								}
+							]
+						},
+						"description": "`busca` casa com parte do **nome do cliente** (ignorando maiusculas e acentos) ou, se for numero, com o **numero da OS**."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('acha a OS pelo numero', () => pm.expect(pm.response.json().conteudo.map((o) => String(o.id))).to.include(String(pm.collectionVariables.get('ordemServicoId'))));"
+								]
+							}
+						}
+					],
+					"id": "a7eed90e-9966-4482-a15a-9be46ffc1177"
 				},
 				{
 					"name": "Listar com filtro (periodo de entrada)",
@@ -6864,7 +7262,7 @@
 		},
 		{
 			"name": "9. Usuarios (MASTER)",
-			"description": "Cadastro dos usuarios do sistema. So o MASTER enxerga a lista; o ADMIN chega apenas pelo `/usuarios/eu`. Rode **Login (MASTER)** e **Login (ADMIN)** antes.\n\n---\n\n### Endpoints cobertos\n\n| Metodo | Rota | Acesso | O que faz | Referencia completa em |\n|---|---|---|---|---|\n| `GET` | `/usuarios/eu` | Autenticado | Devolve o usuario autenticado (o id vem do token). | Meu usuario (GET /usuarios/eu) (9.) |\n| `PUT` | `/usuarios/eu` | Autenticado | Atualiza o nome do proprio usuario. | Editar meu usuario (PUT /usuarios/eu) (9.) |\n| `PUT` | `/usuarios/eu/senha` | Autenticado | Troca a senha do proprio usuario, exigindo a senha atual. | Trocar a senha (204) (12.) |\n| `PUT` | `/usuarios/eu/email` | Autenticado | Pede a troca do proprio e-mail. Nada muda ainda: um link vai para o endereco NOVO. | Pedir a troca de e-mail (202) (13.) |\n| `POST` | `/usuarios` | MASTER | Cadastra um usuario do sistema. Sempre nasce com papel ADMIN. | Criar usuario ADMIN (201) (9.) |\n| `GET` | `/usuarios` | MASTER | Lista os usuarios do sistema. | Listar usuarios como MASTER (200) (9.) |\n| `GET` | `/usuarios/{id}` | MASTER | Busca um usuario pelo id. | Buscar usuario por id (200) (9.) |\n| `PUT` | `/usuarios/{id}` | MASTER | Atualiza o nome de um usuario. | Atualizar usuario por id (PUT) (9.) |\n| `PATCH` | `/usuarios/{id}/ativar` | MASTER | Reativa o usuario, devolvendo o acesso. Idempotente. | Reativar usuario (200) (9.) |\n| `PATCH` | `/usuarios/{id}/desativar` | MASTER | Revoga o acesso do usuario na hora, inclusive tokens ja emitidos. Idempotente. Nao ha exclusao definitiva de usuarios. | Desativar usuario (200) (9.) |",
+			"description": "Cadastro dos usuarios do sistema. So o MASTER enxerga a lista; o ADMIN chega apenas pelo `/usuarios/eu`. Rode **Login (MASTER)** e **Login (ADMIN)** antes.\n\n---\n\n### Endpoints cobertos\n\n| Metodo | Rota | Acesso | O que faz | Referencia completa em |\n|---|---|---|---|---|\n| `GET` | `/usuarios/eu` | Autenticado | Devolve o usuario autenticado (o id vem do token). | Meu usuario (GET /usuarios/eu) (9.) |\n| `PUT` | `/usuarios/eu` | Autenticado | Atualiza o nome do proprio usuario. | Editar meu usuario (PUT /usuarios/eu) (9.) |\n| `PUT` | `/usuarios/eu/senha` | Autenticado | Pede a troca da propria senha. Nada muda ainda: um link vai para o e-mail ATUAL. | Pedir a troca de senha (202) (12.) |\n| `PUT` | `/usuarios/eu/email` | Autenticado | Pede a troca do proprio e-mail. Nada muda ainda: um link vai para o endereco NOVO. | Pedir a troca de e-mail (202) (13.) |\n| `POST` | `/usuarios` | MASTER | Cadastra um usuario do sistema. Sempre nasce com papel ADMIN. | Criar usuario ADMIN (201) (9.) |\n| `GET` | `/usuarios` | MASTER | Lista os usuarios do sistema. | Listar usuarios como MASTER (200) (9.) |\n| `GET` | `/usuarios/{id}` | MASTER | Busca um usuario pelo id. | Buscar usuario por id (200) (9.) |\n| `PUT` | `/usuarios/{id}` | MASTER | Atualiza o nome de um usuario. | Atualizar usuario por id (PUT) (9.) |\n| `PATCH` | `/usuarios/{id}/ativar` | MASTER | Reativa o usuario, devolvendo o acesso. Idempotente. | Reativar usuario (200) (9.) |\n| `PATCH` | `/usuarios/{id}/desativar` | MASTER | Revoga o acesso do usuario na hora, inclusive tokens ja emitidos. Idempotente. Nao ha exclusao definitiva de usuarios. | Desativar usuario (200) (9.) |",
 			"item": [
 				{
 					"name": "Criar usuario ADMIN (201)",
@@ -7163,6 +7561,42 @@
 						}
 					],
 					"id": "f7a346de-83fc-4c4d-a9a3-1ed13fcb7003"
+				},
+				{
+					"name": "Busca livre (nome ou e-mail)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/usuarios?busca={{adminEmail}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"usuarios"
+							],
+							"query": [
+								{
+									"key": "busca",
+									"value": "{{adminEmail}}"
+								}
+							]
+						},
+						"description": "`busca` casa com parte do **nome** ou do **e-mail**, ignorando maiusculas e acentos."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"id": "f1bdb9a7-c725-4e1c-846f-ecbf8ce349f6"
 				},
 				{
 					"name": "Listar usuarios como ADMIN (403)",
@@ -9505,6 +9939,99 @@
 					"id": "8047fdb4-c4a4-5f9d-ba5e-a9efe6a13c29"
 				},
 				{
+					"name": "Filtrar por periodo do envio (200)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/notificacoes?dataInicio=2020-01-01&dataFim=2099-12-31",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"notificacoes"
+							],
+							"query": [
+								{
+									"key": "dataInicio",
+									"value": "2020-01-01"
+								},
+								{
+									"key": "dataFim",
+									"value": "2099-12-31"
+								}
+							]
+						},
+						"description": "`dataInicio`/`dataFim` recortam a **data do envio** (`criadoEm`), inclusivas nas duas pontas. A tela abre com os ultimos 30 dias."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));"
+								]
+							}
+						}
+					],
+					"id": "2bcd7c7a-133d-4de0-adf1-b0109b7ad502"
+				},
+				{
+					"name": "Busca livre (cliente, texto ou numero da OS)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "X-Conta-Id",
+								"value": "{{contaId}}",
+								"type": "text",
+								"disabled": true,
+								"description": "Só MASTER: conta em que opera. Sem o header, a própria conta."
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/notificacoes?busca={{notifOsId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"notificacoes"
+							],
+							"query": [
+								{
+									"key": "busca",
+									"value": "{{notifOsId}}"
+								}
+							]
+						},
+						"description": "`busca` casa com parte do **nome do cliente** ou do **texto enviado** (ignorando maiusculas e acentos) ou, se for numero, com o **numero da OS**."
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.response.to.have.status(200));",
+									"pm.test('acha pelo numero da OS', () => pm.expect(pm.response.json().totalElementos).to.be.above(0));"
+								]
+							}
+						}
+					],
+					"id": "14bc7673-d2b2-4e06-9482-27a46e12a43d"
+				},
+				{
 					"name": "Concluir de novo nao remanda (200)",
 					"request": {
 						"method": "PATCH",
@@ -10121,7 +10648,7 @@
 								"senha"
 							]
 						},
-						"description": "**422 e nao 401, de proposito.** O token e valido e o usuario *esta* autenticado — o que falhou foi uma regra de negocio. Um 401 aqui seria pior que errado: interceptador de front costuma deslogar em qualquer 401, entao um erro de digitacao na senha atual expulsaria o usuario da sessao.\n\n---\n\n> Referencia completa de `PUT /usuarios/eu/senha` e exemplos de resposta: request **Trocar a senha (204)** (pasta *12. Senha*).",
+						"description": "**422 e nao 401, de proposito.** O token e valido e o usuario *esta* autenticado — o que falhou foi uma regra de negocio. Um 401 aqui seria pior que errado: interceptador de front costuma deslogar em qualquer 401, entao um erro de digitacao na senha atual expulsaria o usuario da sessao.\n\n---\n\n> Referencia completa de `PUT /usuarios/eu/senha` e exemplos de resposta: request **Pedir a troca de senha (202)** (pasta *12. Senha*).",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -10181,7 +10708,7 @@
 								"senha"
 							]
 						},
-						"description": "A confirmacao e conferida no servidor mesmo sendo um campo de interface: a regra nao pode depender de o front conferir.\n\n---\n\n> Referencia completa de `PUT /usuarios/eu/senha` e exemplos de resposta: request **Trocar a senha (204)** (pasta *12. Senha*).",
+						"description": "A confirmacao e conferida no servidor mesmo sendo um campo de interface: a regra nao pode depender de o front conferir.\n\n---\n\n> Referencia completa de `PUT /usuarios/eu/senha` e exemplos de resposta: request **Pedir a troca de senha (202)** (pasta *12. Senha*).",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -10238,7 +10765,7 @@
 								"senha"
 							]
 						},
-						"description": "Trocar a senha pela mesma nao e troca. Barrar aqui evita o pior caso: o usuario acha que rotacionou a senha depois de um vazamento e continua com a senha vazada.\n\n---\n\n> Referencia completa de `PUT /usuarios/eu/senha` e exemplos de resposta: request **Trocar a senha (204)** (pasta *12. Senha*).",
+						"description": "Trocar a senha pela mesma nao e troca. Barrar aqui evita o pior caso: o usuario acha que rotacionou a senha depois de um vazamento e continua com a senha vazada.\n\n---\n\n> Referencia completa de `PUT /usuarios/eu/senha` e exemplos de resposta: request **Pedir a troca de senha (202)** (pasta *12. Senha*).",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -10275,7 +10802,7 @@
 					"id": "aee6a395-bc6e-58f6-88f1-73769f38c156"
 				},
 				{
-					"name": "Trocar a senha (204)",
+					"name": "Pedir a troca de senha (202)",
 					"request": {
 						"method": "PUT",
 						"header": [
@@ -10295,7 +10822,7 @@
 								"senha"
 							]
 						},
-						"description": "Caminho feliz. **204 sem corpo e sem token novo**: a sessao atual morre junto (o `iat` dela passa a ser anterior ao `senha_alterada_em`), entao o front precisa mandar o usuario logar de novo — que e o comportamento esperado ao trocar senha.\n\n---\n\n## Referencia: `PUT /usuarios/eu/senha`\n\nTroca a senha do proprio usuario, exigindo a senha atual.\n\n**Acesso:** Bearer JWT - qualquer usuario autenticado (MASTER ou ADMIN)\n\n### Corpo (JSON)\n\n| Campo | Tipo | Obrigatorio | Regras |\n|---|---|---|---|\n| senhaAtual | string | sim | senha atual |\n| senhaNova | string | sim | 8 a 72 caracteres |\n| senhaNovaConfirmacao | string | sim | identica a `senhaNova` |\n\n### Resposta de sucesso\n`204 No Content`.\n\n### Regras de negocio\n- Nova senha igual a atual e barrada (422).\n- Todos os JWT emitidos antes da troca passam a responder 401: faca login de novo.\n\n### Status possiveis\n\n| Status | Quando |\n|---|---|\n| 204 | Senha alterada |\n| 400 | Bean Validation falhou (mapa `erros`) ou JSON malformado |\n| 401 | Token ausente, invalido, expirado, emitido antes da ultima troca de senha/e-mail, ou usuario desativado |\n| 422 | Senha atual incorreta, confirmacao divergente ou nova igual a atual |",
+						"description": "Caminho feliz. **202 sem corpo**: nada muda ainda. A senha nova fica pendente (em hash BCrypt) e um link vai para o **e-mail atual** do usuario; a troca so vale no clique (`POST /auth/senha/confirmar`). Ate la a senha antiga e a sessao continuam valendo.\n\n---\n\n## Referencia: `PUT /usuarios/eu/senha`\n\nPede a troca da propria senha, exigindo a senha atual.\n\n**Acesso:** Bearer JWT - qualquer usuario autenticado (MASTER ou ADMIN)\n\n### Corpo (JSON)\n\n| Campo | Tipo | Obrigatorio | Regras |\n|---|---|---|---|\n| senhaAtual | string | sim | senha atual |\n| senhaNova | string | sim | 8 a 72 caracteres |\n| senhaNovaConfirmacao | string | sim | identica a `senhaNova` |\n\n### Resposta de sucesso\n`202 Accepted`.\n\n### Regras de negocio\n- Nova senha igual a atual e barrada (422).\n- Pedir de novo invalida o link anterior: so o ultimo vale.\n- Redefinir a senha pelo \"esqueci\" cancela o pedido pendente.\n\n### Status possiveis\n\n| Status | Quando |\n|---|---|\n| 202 | Pedido registrado; link enviado ao e-mail atual |\n| 400 | Bean Validation falhou (mapa `erros`) ou JSON malformado |\n| 401 | Token ausente, invalido, expirado ou usuario desativado |\n| 422 | Senha atual incorreta, confirmacao divergente ou nova igual a atual |",
 						"auth": {
 							"type": "bearer",
 							"bearer": [
@@ -10318,7 +10845,7 @@
 					},
 					"response": [
 						{
-							"name": "204 - Senha alterada",
+							"name": "202 - Pedido registrado",
 							"originalRequest": {
 								"method": "PUT",
 								"header": [
@@ -10348,8 +10875,8 @@
 									}
 								}
 							},
-							"status": "No Content",
-							"code": 204,
+							"status": "Accepted",
+							"code": 202,
 							"_postman_previewlanguage": "text",
 							"header": [],
 							"cookie": [],
@@ -10448,13 +10975,118 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test('204 No Content', () => pm.response.to.have.status(204));",
-									"pm.test('sem corpo, e sem token novo', () => pm.expect(pm.response.text()).to.be.empty);"
+									"pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+									"pm.test('sem corpo', () => pm.expect(pm.response.text()).to.be.empty);"
 								]
 							}
 						}
 					],
 					"id": "2b9a14a1-c1f7-554b-b93f-aa5c4b143c72"
+				},
+				{
+					"name": "Confirmar troca com token invalido (422)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/senha/confirmar",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"senha",
+								"confirmar"
+							],
+							"query": []
+						},
+						"description": "Rota **publica**. Token inexistente, usado, expirado ou de outro fluxo devolvem a mesma mensagem.",
+						"auth": {
+							"type": "noauth"
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"esteTokenNuncaExistiu\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('422 Unprocessable', () => pm.response.to.have.status(422));"
+								]
+							}
+						}
+					],
+					"id": "680f90ee-86c6-4d27-9849-4579d194c966"
+				},
+				{
+					"name": "Confirmar troca com o token do e-mail (204) - COLE O TOKEN",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/senha/confirmar",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"senha",
+								"confirmar"
+							],
+							"query": []
+						},
+						"description": "**Request manual.** O link foi para `{{senhaUsuarioEmail}}`; copie o trecho depois de `?token=` e cole em `{{tokenConfirmacaoSenha}}`. Em desenvolvimento, o Mailpit (localhost:8025) mostra a caixa.\n\nSem colar o token, este request e os dois seguintes ficam em vermelho — e esperado.\n\n---\n\n## Referencia: `POST /auth/senha/confirmar`\n\nEfetiva a senha escolhida em `PUT /usuarios/eu/senha`.\n\n**Acesso:** **Publica** - nao exige token\n\n### Corpo (JSON)\n\n| Campo | Tipo | Obrigatorio | Regras |\n|---|---|---|---|\n| token | string | sim | token do link enviado ao e-mail atual |\n\n### Resposta de sucesso\n`204 No Content`.\n\n### Regras de negocio\n- Derruba todas as sessoes abertas, inclusive a que fez o pedido.\n- Token inexistente, usado, expirado ou de outro fluxo devolvem a mesma mensagem 422.\n\n### Status possiveis\n\n| Status | Quando |\n|---|---|\n| 204 | Senha alterada |\n| 400 | Token ausente |\n| 422 | Link invalido ou expirado |",
+						"auth": {
+							"type": "noauth"
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"token\": \"{{tokenConfirmacaoSenha}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [],
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const tk = pm.collectionVariables.get('tokenConfirmacaoSenha');",
+									"if (!tk) {",
+									"    pm.test.skip('SEM TOKEN: cole o token do e-mail em {{tokenConfirmacaoSenha}}', () => {});",
+									"} else {",
+									"    pm.test('204 No Content', () => pm.response.to.have.status(204));",
+									"}"
+								]
+							}
+						}
+					],
+					"id": "5d6e3031-c6cc-4a59-8cf5-56a48c7e0fd6"
 				},
 				{
 					"name": "A sessao anterior foi derrubada (401)",
@@ -10952,7 +11584,7 @@
 					"id": "06516bc3-052f-5b76-ac9d-fcd4ccf2ceb1"
 				}
 			],
-			"description": "Alteracao e recuperacao de senha.\n\n**Dois caminhos, os dois com prova de posse.** `PUT /usuarios/eu/senha` exige a senha atual; o fluxo de `/auth/senha/*` exige acesso a caixa postal. **Nao existe terceiro** — nem o MASTER redefine a senha de outro usuario.\n\nO campo `senha` do `PUT /usuarios/eu` foi removido: trocava a senha sem exigir a atual, entao um token roubado bastava para tomar a conta. Os requests 3 e 4 provam que fechou.\n\n**A pasta usa um usuario descartavel e se limpa no fim.** Rodar contra o MASTER quebraria o `{{masterSenha}}` e junto com ele as outras onze pastas.\n\nUm request e manual: o Postman nao le caixa de e-mail, entao o token de recuperacao precisa ser colado em `{{tokenRecuperacao}}`.\n\n---\n\n### Endpoints cobertos\n\n| Metodo | Rota | Acesso | O que faz | Referencia completa em |\n|---|---|---|---|---|\n| `PUT` | `/usuarios/eu/senha` | Autenticado | Troca a senha do proprio usuario, exigindo a senha atual. | Trocar a senha (204) (12.) |\n| `POST` | `/auth/senha/esqueci` | Publica | Envia por e-mail um link para redefinir a senha. | Esqueci a senha - e-mail cadastrado (202) (12.) |\n| `POST` | `/auth/senha/redefinir` | Publica | Redefine a senha usando o token recebido por e-mail. Nao pede a senha atual: o token prova a posse da conta. | Redefinir com o token do e-mail (204) - COLE O TOKEN (12.) |",
+			"description": "Alteracao e recuperacao de senha.\n\n**Dois caminhos, os dois com prova de posse.** `PUT /usuarios/eu/senha` exige a senha atual **e** o clique no link enviado ao e-mail atual (`POST /auth/senha/confirmar`); o fluxo de `/auth/senha/*` exige acesso a caixa postal. **Nao existe terceiro** — nem o MASTER redefine a senha de outro usuario.\n\nO campo `senha` do `PUT /usuarios/eu` foi removido: trocava a senha sem exigir a atual, entao um token roubado bastava para tomar a conta. Os requests 3 e 4 provam que fechou.\n\n**A pasta usa um usuario descartavel e se limpa no fim.** Rodar contra o MASTER quebraria o `{{masterSenha}}` e junto com ele as outras onze pastas.\n\nUm request e manual: o Postman nao le caixa de e-mail, entao o token de recuperacao precisa ser colado em `{{tokenRecuperacao}}`.\n\n---\n\n### Endpoints cobertos\n\n| Metodo | Rota | Acesso | O que faz | Referencia completa em |\n|---|---|---|---|---|\n| `PUT` | `/usuarios/eu/senha` | Autenticado | Pede a troca da propria senha. Nada muda ainda: um link vai para o e-mail ATUAL. | Pedir a troca de senha (202) (12.) |\n| `POST` | `/auth/senha/confirmar` | Publica | Confirma a troca de senha com o token do e-mail. | Confirmar troca com o token do e-mail (204) - COLE O TOKEN (12.) |\n| `POST` | `/auth/senha/esqueci` | Publica | Envia por e-mail um link para redefinir a senha. | Esqueci a senha - e-mail cadastrado (202) (12.) |\n| `POST` | `/auth/senha/redefinir` | Publica | Redefine a senha usando o token recebido por e-mail. Nao pede a senha atual: o token prova a posse da conta. | Redefinir com o token do e-mail (204) - COLE O TOKEN (12.) |",
 			"id": "e16c5cf0-03d2-53ed-907b-00c9b01e79e2"
 		},
 		{
@@ -12169,6 +12801,18 @@
 			"key": "contaId",
 			"value": "",
 			"type": "string"
+		},
+		{
+			"key": "nomeClienteDuplicado",
+			"value": ""
+		},
+		{
+			"key": "telefoneClienteDuplicado",
+			"value": ""
+		},
+		{
+			"key": "tokenConfirmacaoSenha",
+			"value": ""
 		}
 	]
 }
