@@ -1,0 +1,61 @@
+# Stack de producao da API BV2 no Docker Swarm da VPS (bv2.tech).
+# Aplicada pelo GitHub Actions (.github/workflows/deploy.yml):
+#   IMAGE_TAG=sha-xxxxxxx docker stack deploy --with-registry-auth -c stack.yml bv2
+# Servico resultante: bv2_api. Os segredos ficam em /opt/bv2-api/.env, so na VPS.
+
+services:
+  api:
+    image: ghcr.io/brunohmontagna/bv2-backend:${IMAGE_TAG:?defina IMAGE_TAG}
+
+    env_file:
+      - /opt/bv2-api/.env
+
+    networks:
+      - network_swarm_public
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s   # Flyway + contexto Spring na primeira subida
+
+    # Mais que o graceful shutdown do Spring (30s padrao).
+    stop_grace_period: 40s
+
+    deploy:
+      mode: replicated
+      replicas: 2         # stateless (JWT), sem @Scheduled: escalar nao duplica tarefas
+      update_config:
+        parallelism: 1
+        order: start-first     # sobe a nova antes de derrubar a antiga: deploy sem downtime
+        failure_action: rollback
+        monitor: 60s
+        delay: 15s
+      rollback_config:
+        parallelism: 1
+        order: start-first
+      # "any", nao "on-failure": um SIGTERM com exit 0 deixaria a replica parada para
+      # sempre (foi o que derrubou o webhook/worker do n8n por 13 dias).
+      restart_policy:
+        condition: any
+        delay: 10s
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 256M
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.bv2-api.rule=Host(`api.bv2.tech`)
+        - traefik.http.routers.bv2-api.entrypoints=websecure
+        - traefik.http.routers.bv2-api.tls=true
+        - traefik.http.routers.bv2-api.tls.certresolver=le
+        - traefik.http.routers.bv2-api.middlewares=sec-headers@swarm,gzip@swarm
+        - traefik.http.services.bv2-api.loadbalancer.server.port=8080
+        - traefik.http.services.bv2-api.loadbalancer.healthcheck.path=/actuator/health/readiness
+        - traefik.http.services.bv2-api.loadbalancer.healthcheck.interval=10s
+
+networks:
+  network_swarm_public:
+    external: true

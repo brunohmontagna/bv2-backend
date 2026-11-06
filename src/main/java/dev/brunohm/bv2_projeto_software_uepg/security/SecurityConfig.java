@@ -1,11 +1,16 @@
 package dev.brunohm.bv2_projeto_software_uepg.security;
 
+import java.util.Arrays;
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -14,6 +19,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,7 +34,10 @@ public class SecurityConfig {
     private static final String[] ROTAS_PUBLICAS = {
             "/v3/api-docs/**",
             "/swagger-ui/**",
-            "/swagger-ui.html"
+            "/swagger-ui.html",
+            // Healthcheck do container e smoke test do deploy. Sem detalhes (show-details=never).
+            "/actuator/health",
+            "/actuator/health/**"
     };
 
     private final JwtAuthFilter jwtAuthFilter;
@@ -38,6 +49,9 @@ public class SecurityConfig {
         return http
                 // API stateless com JWT: nao ha sessao nem formulario, logo nao ha CSRF a proteger.
                 .csrf(csrf -> csrf.disable())
+                // O front fica em outro dominio (app.bv2.tech): sem isso o navegador barra o
+                // preflight OPTIONS antes mesmo do JWT ser avaliado.
+                .cors(Customizer.withDefaults())
                 .sessionManagement(sessao -> sessao.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(req -> req
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
@@ -56,6 +70,25 @@ public class SecurityConfig {
                         .accessDeniedHandler(problemDetailErroHandler))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins}") String origensPermitidas) {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(Arrays.stream(origensPermitidas.split(","))
+                .map(String::trim)
+                .filter(origem -> !origem.isEmpty())
+                .toList());
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // Autenticacao e JWT no header Authorization, nao cookie: credentials desligado.
+        config.setAllowCredentials(false);
+        config.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 
     @Bean
